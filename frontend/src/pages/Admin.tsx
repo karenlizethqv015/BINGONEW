@@ -70,6 +70,21 @@ export function Admin() {
 
       <Card className="max-w-xl">
         <CardHeader>
+          <CardTitle>Partidas</CardTitle>
+          <CardDescription>
+            Crea una partida y elige qué formas de ganar se juegan en ella, con
+            su premio y su orden.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Button asChild size="sm">
+            <Link to="/admin/partidas">Ver partidas</Link>
+          </Button>
+        </CardContent>
+      </Card>
+
+      <Card className="max-w-xl">
+        <CardHeader>
           <CardTitle>Conexión con el backend</CardTitle>
           <CardDescription>
             Consulta <code className="text-primary">GET /api/health</code> a
