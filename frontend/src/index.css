@@ -1,0 +1,147 @@
+@import 'tailwindcss';
+
+/* =========================================================================
+   Sistema de diseño — "Casino nocturno"
+   =========================================================================
+   Paleta oscura con acentos dorados, pensada para verse bien tanto en la
+   pantalla del administrador como proyectada en el TV de la sala.
+
+   Regla importante: NO usar colores sueltos de Tailwind (bg-slate-800,
+   text-yellow-400, etc.) en los componentes. Todo color debe salir de estos
+   tokens, para que la identidad visual se mantenga consistente y se pueda
+   ajustar desde un solo lugar.
+
+   El token `success` no es decorativo: es el verde con el que el tablero de
+   transmisión resalta el último número cantado, que es un requisito funcional
+   (ver docs/03-alcance-funcional-mvp.md).
+   ========================================================================= */
+
+:root {
+  /* Fondos */
+  --background: #0b1120; /* azul-noche, fondo de la aplicación */
+  --surface: #151e32; /* paneles y tarjetas */
+  --surface-2: #1e2a44; /* elevación secundaria, filas alternas, hover */
+
+  /* Texto */
+  --foreground: #f8fafc; /* texto principal */
+  --muted-foreground: #94a3b8; /* texto secundario, etiquetas */
+
+  /* Bordes y foco */
+  --border: #2a3a5c;
+  --input: #2a3a5c;
+  --ring: #f5b301;
+
+  /* Acentos semánticos */
+  --primary: #f5b301; /* dorado: balotas, premios, acciones principales */
+  --primary-foreground: #1a1206;
+  --success: #10b981; /* VERDE del último número cantado */
+  --success-foreground: #04231a;
+  --destructive: #ef4444;
+  --destructive-foreground: #f8fafc;
+
+  --radius: 0.75rem;
+}
+
+/* Expone los tokens de arriba como utilidades de Tailwind:
+   --color-primary genera bg-primary, text-primary, border-primary, etc. */
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+
+  --color-card: var(--surface);
+  --color-card-foreground: var(--foreground);
+  --color-popover: var(--surface);
+  --color-popover-foreground: var(--foreground);
+
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--surface-2);
+  --color-secondary-foreground: var(--foreground);
+  --color-accent: var(--surface-2);
+  --color-accent-foreground: var(--foreground);
+
+  --color-muted: var(--surface-2);
+  --color-muted-foreground: var(--muted-foreground);
+
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --radius-lg: var(--radius);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-sm: calc(var(--radius) - 4px);
+
+  /* Tipografía: en la Fase 0 se usa el stack del sistema.
+     El autohospedaje de una tipografía display para los números de balota
+     queda para la tarea #9 de la Fase 1 — debe ir en el repositorio, NO por
+     CDN de Google Fonts, porque la instalación final corre en LAN sin
+     internet (ver docs/05-requisitos-no-funcionales.md). */
+  --font-sans:
+    system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
+    sans-serif;
+  --font-display: var(--font-sans);
+}
+
+@layer base {
+  * {
+    border-color: var(--border);
+  }
+
+  body {
+    background-color: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    /* Brillo dorado muy sutil en la parte superior: da profundidad al fondo
+       plano sin distraer del contenido. */
+    background-image: radial-gradient(
+      ellipse 80% 50% at 50% -20%,
+      color-mix(in srgb, var(--primary) 12%, transparent),
+      transparent
+    );
+    background-attachment: fixed;
+    min-height: 100vh;
+  }
+
+  /* Los números de balota se leen a distancia: nunca deben mostrar cifras de
+     ancho variable, o el tablero "baila" al actualizarse. */
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+@layer utilities {
+  /* Animación de entrada de una balota recién cantada. Se usará en el tablero
+     de transmisión y en el cartón del jugador (Fase 1). */
+  @keyframes balota-entra {
+    0% {
+      opacity: 0;
+      transform: scale(0.6) translateY(8px);
+    }
+    60% {
+      transform: scale(1.08) translateY(0);
+    }
+    100% {
+      opacity: 1;
+      transform: scale(1) translateY(0);
+    }
+  }
+
+  .animate-balota {
+    animation: balota-entra 420ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  }
+
+  /* Respeta a quien pide menos movimiento en su sistema operativo. */
+  @media (prefers-reduced-motion: reduce) {
+    .animate-balota {
+      animation: none;
+    }
+  }
+}

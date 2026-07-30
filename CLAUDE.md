@@ -67,7 +67,50 @@ El backend expone **un endpoint WebSocket por partida**; todas las vistas en tie
 
 ## Comandos
 
-> ⚠️ Pendiente: todavía no existe código. **La sesión que ejecute la Fase 0 (scaffolding) debe llenar esta sección** con los comandos reales antes de cerrar: levantar backend (uvicorn), levantar frontend (Vite), migraciones (Alembic), correr la suite de tests y correr **un solo test**, y lint/format si se configuran. Sin esto, cada sesión futura pierde tiempo redescubriéndolos.
+Todos los comandos del backend usan el intérprete del entorno virtual directamente (`.venv\Scripts\python.exe -m ...`), sin activar el venv: así funcionan igual desde cualquier shell y no dependen de que alguien haya corrido `Activate.ps1`.
+
+### Backend (desde `backend/`)
+
+```powershell
+# Instalación inicial (una sola vez)
+python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+
+# Levantar la API en desarrollo — http://127.0.0.1:8000 (docs en /docs)
+.\.venv\Scripts\python.exe -m uvicorn app.main:app --reload
+
+# Migraciones
+.\.venv\Scripts\python.exe -m alembic upgrade head
+.\.venv\Scripts\python.exe -m alembic revision --autogenerate -m "descripcion"
+.\.venv\Scripts\python.exe -m alembic downgrade -1
+
+# Pruebas
+.\.venv\Scripts\python.exe -m pytest                                                 # toda la suite
+.\.venv\Scripts\python.exe -m pytest tests/test_health.py                            # un archivo
+.\.venv\Scripts\python.exe -m pytest tests/test_health.py::test_health_responde_ok    # UN SOLO TEST
+.\.venv\Scripts\python.exe -m pytest -k websocket                                    # por nombre
+```
+
+### Frontend (desde `frontend/`)
+
+```powershell
+npm install         # instalación inicial
+npm run dev         # http://localhost:5173 (proxy de /api y /ws al backend)
+npm run build       # compila TypeScript y genera dist/
+npm run lint        # oxlint
+npm run preview     # sirve el build de producción
+```
+
+**Para trabajar hay que tener los dos corriendo a la vez** (uvicorn en 8000 y Vite en 5173): el frontend llama a `/api` y `/ws` con rutas relativas y el proxy de Vite las reenvía. Si una vista muestra "sin conexión", casi siempre es que falta levantar uvicorn.
+
+## Convenciones del código (establecidas en la Fase 0)
+
+Cuatro reglas que no son evidentes leyendo el código y que cuesta caro descubrir tarde:
+
+1. **Nunca escribir host ni puerto en el frontend.** Todas las llamadas van a rutas relativas (`/api/...`, `/ws/...`). En desarrollo las resuelve el proxy de Vite; en la instalación final en LAN, frontend y backend comparten origen. Un `http://localhost:8000` escrito a mano rompe el despliegue en la sala.
+2. **Ningún color suelto de Tailwind.** Nada de `bg-slate-800` ni `text-yellow-400`: todo color sale de los tokens de `frontend/src/index.css` (`bg-surface`, `text-primary`, `text-success`…). Es lo que mantiene la identidad visual coherente y permite ajustarla desde un solo archivo.
+3. **Alembic solo ve los modelos importados en `backend/app/models/__init__.py`.** Si un modelo nuevo no se importa ahí, `--autogenerate` produce una migración **vacía sin dar ningún error**. Revisar siempre el archivo generado antes de aplicarlo.
+4. **Los modelos deben seguir siendo compatibles con PostgreSQL** aunque la demo corra en SQLite: tipo `JSON` genérico (nunca `JSONB`), `DateTime(timezone=True)`, y nada de SQL crudo específico de un motor. El detalle está en `backend/README.md`.
 
 ## Reglas de dominio que no se negocian (bingo de 75 bolas)
 

@@ -1,0 +1,36 @@
+# --- Python / backend ---
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Base de datos local de la demo (SQLite). Nunca se versiona:
+# cada quien genera la suya con `alembic upgrade head`.
+*.db
+*.db-journal
+*.sqlite3
+
+# --- Node / frontend ---
+node_modules/
+dist/
+dist-ssr/
+*.local
+.vite/
+
+# --- Entorno ---
+# Los .env llevan configuración local y no se versionan.
+# Los .env.example sí, como plantilla.
+.env
+.env.*
+!.env.example
+
+# --- Editores y sistema operativo ---
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+Thumbs.db

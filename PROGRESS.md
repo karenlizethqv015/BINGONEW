@@ -2,18 +2,22 @@
 
 > Claude Code debe actualizar este archivo cada vez que complete una tarea: marcar el checkbox, agregar fecha y una línea breve de qué se hizo o qué decisión se tomó. No se debe reordenar la prioridad de fases sin que la usuaria lo pida.
 
-Última actualización: 2026-07-30 (creación del plan inicial, ninguna tarea de código empezada aún).
+Última actualización: 2026-07-30 (Fase 0 completa salvo el despliegue, pospuesto a propósito).
 
 ---
 
 ## Fase 0 — Setup del proyecto
 
-- [ ] Crear estructura del monorepo (`backend/`, `frontend/`).
-- [ ] Elegir e inicializar backend FastAPI + SQLAlchemy + Alembic.
-- [ ] Elegir base de datos para la demo (SQLite vs Postgres gestionado) y documentar la decisión aquí.
-- [ ] Inicializar frontend React + Vite + TypeScript + TailwindCSS.
-- [ ] Definir paleta de colores / identidad visual del MVP (ver `docs/05-requisitos-no-funcionales.md`, requisito de frontend llamativo).
-- [ ] Configurar despliegue de demo (frontend en Vercel/Netlify, backend en Railway/Render/Fly.io).
+- [x] Crear estructura del monorepo (`backend/`, `frontend/`). — 2026-07-30. Monorepo con `backend/` (FastAPI) y `frontend/` (Vite), `.gitignore` y `README.md` en la raíz.
+- [x] Elegir e inicializar backend FastAPI + SQLAlchemy + Alembic. — 2026-07-30. FastAPI 0.141 + SQLAlchemy 2.0.51 async + Alembic 1.18. Endpoint `GET /api/health` y canal WebSocket de prueba `/ws/echo` con un `GestorConexiones` en memoria que la balotera reutilizará en la Fase 1. 3 pruebas pasando.
+- [x] Elegir base de datos para la demo (SQLite vs Postgres gestionado) y documentar la decisión aquí. — 2026-07-30. **SQLite + aiosqlite**, ver bitácora abajo.
+- [x] Inicializar frontend React + Vite + TypeScript + TailwindCSS. — 2026-07-30. React 19 + Vite 8 + TypeScript 6 + Tailwind 4 + shadcn/ui. Rutas por rol funcionando y proxy de `/api` y `/ws` al backend.
+- [x] Definir paleta de colores / identidad visual del MVP (ver `docs/05-requisitos-no-funcionales.md`, requisito de frontend llamativo). — 2026-07-30. Paleta **"Casino nocturno"** en `frontend/src/index.css`, ver bitácora.
+- [ ] Configurar despliegue de demo (frontend en Vercel/Netlify, backend en Railway/Render/Fly.io). — **Pospuesto a propósito** por decisión de la usuaria (2026-07-30): requiere cuentas propias en esos servicios. Se resuelve completo en la tarea #9 de la Fase 1, que ya contempla el despliegue.
+
+### Cómo levantar el proyecto
+
+Los comandos están en la sección `## Comandos` de `CLAUDE.md`. En corto: uvicorn en el 8000 y Vite en el 5173, **los dos a la vez**.
 
 ## Fase 1 — MVP a mostrar al cliente (prioridad máxima)
 
@@ -58,3 +62,13 @@ Orden sugerido de implementación (cada una debe funcionar de punta a punta ante
 > Agregar aquí cada decisión relevante tomada durante el desarrollo, con fecha.
 
 - 2026-07-30 — Se define que el MVP de demo se desplegará temporalmente en la web (no en LAN) solo para mostrárselo al cliente; la arquitectura LAN definitiva se retoma después de aprobado el MVP.
+
+- 2026-07-30 — **Base de datos de la demo: SQLite + `aiosqlite`.** Motivos: (1) el entorno tiene Python 3.14, muy reciente, y los drivers compilados de PostgreSQL todavía tienen cobertura irregular de wheels, mientras que `aiosqlite` es Python puro; (2) no exige crear cuentas ni aprovisionar nada, así la Fase 1 arranca de inmediato; (3) `CLAUDE.md` indica tomar la opción más rápida de entregar y documentarla. **Para que el cambio a PostgreSQL en la Fase 2 sea solo cambiar `DATABASE_URL`**, los modelos deben seguir las reglas de compatibilidad escritas en `backend/README.md` (tipo `JSON` genérico y nunca `JSONB`, `DateTime(timezone=True)`, nada de SQL crudo específico de un motor). `render_as_batch=True` ya está activo en `alembic/env.py` — no quitarlo.
+
+- 2026-07-30 — **Identidad visual: paleta "Casino nocturno"** (elegida por la usuaria entre tres propuestas). Oscura: fondo azul-noche `#0B1120`, acentos dorados `#F5B301` y verde esmeralda `#10B981`. Se eligió por contraste: se lee bien tanto en el monitor del administrador como proyectada en el TV de la sala. Vive completa en `frontend/src/index.css` como tokens; los componentes no deben usar colores sueltos de Tailwind.
+
+- 2026-07-30 — **Componentes: shadcn/ui** (elegido por la usuaria), como sugería `SKILLS-RECOMENDADAS.md`. El CLI oficial no se ejecutó porque el proyecto usa Tailwind 4 + TypeScript 6 + Vite 8 y la detección automática es frágil; se escribieron a mano `button` y `card` siguiendo exactamente la convención de shadcn, y se dejó `components.json` configurado para que `npx shadcn@latest add <componente>` funcione de aquí en adelante.
+
+- 2026-07-30 — **El despliegue de la demo se pospone a la tarea #9 de la Fase 1** (decisión de la usuaria). No se crearon archivos de despliegue en la Fase 0. Nota para cuando se retome: el frontend ya llama al backend con rutas relativas (`/api`, `/ws`), así que servir ambos desde el mismo origen no requiere cambios de código.
+
+- 2026-07-30 — **Aviso de seguridad de `react-router` que se decidió NO atender:** `npm audit` reporta `GHSA-qwww-vcr4-c8h2` (severidad alta) en `react-router` 7.18.2. Aplica solo al **modo RSC** con server actions; esta aplicación es una SPA puramente de cliente, así que no la afecta. Además, la versión instalada es la última publicada y la corrección que sugiere npm (7.11.0) es *anterior*. Revisar cuando salga una versión parcheada.
