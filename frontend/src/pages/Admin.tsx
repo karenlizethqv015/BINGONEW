@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 
 import { Button } from '@/components/ui/button'
 import {
@@ -51,6 +52,21 @@ export function Admin() {
           Los controles de la partida se implementan en la tarea #7 de la Fase 1.
         </p>
       </header>
+
+      <Card className="max-w-xl">
+        <CardHeader>
+          <CardTitle>Formas de ganar</CardTitle>
+          <CardDescription>
+            Catálogo de figuras: diseña los patrones que pueden ganar y
+            reutilízalos en cualquier partida.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Button asChild size="sm">
+            <Link to="/admin/figuras">Abrir catálogo</Link>
+          </Button>
+        </CardContent>
+      </Card>
 
       <Card className="max-w-xl">
         <CardHeader>

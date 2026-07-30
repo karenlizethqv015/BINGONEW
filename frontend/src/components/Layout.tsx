@@ -12,6 +12,7 @@ interface Ruta {
 /** Rutas por rol. La convención está fijada en CLAUDE.md. */
 const RUTAS: Ruta[] = [
   { to: '/admin', etiqueta: 'Administración' },
+  { to: '/admin/figuras', etiqueta: 'Figuras' },
   { to: '/transmision', etiqueta: 'Transmisión' },
   { to: '/jugador', etiqueta: 'Jugador' },
   { to: '/vendedor', etiqueta: 'Vendedor', fase2: true },
@@ -35,6 +36,10 @@ export function Layout() {
               <NavLink
                 key={ruta.to}
                 to={ruta.to}
+                // `end` evita que /admin quede resaltado estando en
+                // /admin/figuras: NavLink por defecto también marca las rutas
+                // anidadas.
+                end
                 className={({ isActive }) =>
                   cn(
                     'rounded-md px-3 py-1.5 text-sm font-medium transition-colors',
