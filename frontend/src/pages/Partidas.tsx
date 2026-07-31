@@ -106,11 +106,13 @@ export function Partidas() {
               </label>
               <Input
                 id="precio"
-                type="number"
-                min={0}
-                step={500}
+                // Igual que los premios: se escribe a mano, sin flechas de
+                // incremento ni rueda del ratón.
+                type="text"
+                inputMode="numeric"
                 value={precio}
-                onChange={(e) => setPrecio(e.target.value)}
+                onChange={(e) => setPrecio(e.target.value.replace(/\D/g, ''))}
+                className="tabular"
               />
               <p className="text-xs text-muted-foreground">
                 {formatearPesos(Number(precio) || 0)}

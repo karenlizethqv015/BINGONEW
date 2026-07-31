@@ -5,6 +5,7 @@ from datetime import datetime
 from pydantic import BaseModel, ConfigDict, Field, computed_field, field_validator
 
 from app.dominio.bingo import TAMANO_CUADRICULA, Patron, contar_celdas
+from app.models.figura import TipoFigura
 
 
 def _validar_patron(patron: Patron) -> Patron:
@@ -38,6 +39,10 @@ class FiguraCrear(BaseModel):
     nombre: str = Field(min_length=1, max_length=60)
     patron: Patron
 
+    #: Categoría del catálogo. Define en cuál de las tres listas aparece la
+    #: figura al configurar una partida.
+    tipo: TipoFigura = TipoFigura.FIGURA
+
     @field_validator("nombre")
     @classmethod
     def limpiar_nombre(cls, valor: str) -> str:
@@ -57,6 +62,7 @@ class FiguraActualizar(BaseModel):
 
     nombre: str | None = Field(default=None, min_length=1, max_length=60)
     patron: Patron | None = None
+    tipo: TipoFigura | None = None
 
     @field_validator("nombre")
     @classmethod
@@ -82,6 +88,7 @@ class FiguraLeer(BaseModel):
     id: int
     nombre: str
     patron: Patron
+    tipo: TipoFigura
     creado_en: datetime
     actualizado_en: datetime
 
