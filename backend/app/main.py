@@ -8,13 +8,18 @@ import logging
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import Depends, FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.config import settings
-from app.db import engine
+from app.db import engine, get_sesion_factory
+from app.models.balota_cantada import BalotaCantada
+from app.models.partida import Partida
+from app.realtime.eventos import canal_de_partida, evento_sincronizacion
 from app.realtime.manager import gestor
-from app.routers import cartones, figuras, health, partidas
+from app.routers import balotas, cartones, figuras, health, partidas
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -51,6 +56,63 @@ app.include_router(health.router)
 app.include_router(figuras.router)
 app.include_router(partidas.router)
 app.include_router(cartones.router)
+app.include_router(balotas.router)
+
+
+@app.websocket("/ws/partida/{partida_id}")
+async def websocket_partida(
+    websocket: WebSocket,
+    partida_id: int,
+    sesion_factory: async_sessionmaker[AsyncSession] = Depends(get_sesion_factory),
+) -> None:
+    """Canal en tiempo real de una partida.
+
+    **Un endpoint por partida**, como fija CLAUDE.md: el tablero de transmisión,
+    el cartón del jugador y el panel del administrador se conectan todos aquí y
+    reaccionan al mismo evento de balota.
+
+    Nada más conectarse se envía la sincronización con el estado y todas las
+    balotas ya cantadas, para que una pantalla que llega tarde o que se
+    reconecta reconstruya el tablero completo. Después el canal es de una sola
+    dirección: el servidor emite y el cliente solo escucha.
+
+    La sesión de base de datos se abre y se cierra aquí mismo: la conexión puede
+    durar horas y no debe retener una conexión a la base todo ese tiempo.
+    """
+    async with sesion_factory() as sesion:
+        partida = await sesion.get(Partida, partida_id)
+        if partida is None:
+            # 1008 = "policy violation"; el cliente no debe reintentar con este
+            # identificador porque la partida no existe.
+            await websocket.close(code=1008, reason="La partida no existe")
+            return
+
+        balotas_cantadas = list(
+            (
+                await sesion.execute(
+                    select(BalotaCantada)
+                    .where(BalotaCantada.partida_id == partida_id)
+                    .order_by(BalotaCantada.orden)
+                )
+            )
+            .scalars()
+            .all()
+        )
+        sincronizacion = evento_sincronizacion(partida, balotas_cantadas)
+
+    canal = canal_de_partida(partida_id)
+    await gestor.conectar(canal, websocket)
+
+    try:
+        await websocket.send_json(sincronizacion)
+        while True:
+            # No se espera nada del cliente; recibir es la forma de enterarse de
+            # que se desconectó.
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        pass
+    finally:
+        await gestor.desconectar(canal, websocket)
 
 
 @app.websocket("/ws/echo")

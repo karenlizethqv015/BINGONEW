@@ -64,8 +64,15 @@ class Figura(Base):
 
     #: Categoría del catálogo. Determina en cuál de las tres listas aparece la
     #: figura al configurar una partida.
+    #: `server_default` además del `default` de Python: mantiene el modelo y la
+    #: base sincronizados (si no, Alembic propone quitarlo en cada migración) y
+    #: deja la columna a salvo de un INSERT que no pase por el ORM.
     tipo: Mapped[TipoFigura] = mapped_column(
-        TipoTipoFigura, nullable=False, default=TipoFigura.FIGURA, index=True
+        TipoTipoFigura,
+        nullable=False,
+        default=TipoFigura.FIGURA,
+        server_default=TipoFigura.FIGURA.value,
+        index=True,
     )
 
     #: Usuario que la creó. Queda nullable y SIN llave foránea a propósito: la

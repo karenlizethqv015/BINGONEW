@@ -253,6 +253,11 @@ export function Partidas() {
                                 Cartones
                               </Link>
                             </Button>
+                            <Button asChild size="sm" variant="success">
+                              <Link to={`/admin/partidas/${partida.id}/balotera`}>
+                                Balotera
+                              </Link>
+                            </Button>
                             <Button
                               size="sm"
                               variant="ghost"
