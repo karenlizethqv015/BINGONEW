@@ -246,6 +246,11 @@ export function Partidas() {
                                 Configurar formas
                               </Link>
                             </Button>
+                            <Button asChild size="sm" variant="outline">
+                              <Link to={`/admin/partidas/${partida.id}/cartones`}>
+                                Cartones
+                              </Link>
+                            </Button>
                             <Button
                               size="sm"
                               variant="ghost"
