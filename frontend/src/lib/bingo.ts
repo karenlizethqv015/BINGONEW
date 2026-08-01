@@ -37,6 +37,29 @@ export const RANGOS_POR_COLUMNA: [number, number][] = [
 /** Total de balotas de una partida. */
 export const TOTAL_BALOTAS = 75
 
+/**
+ * Indica si una celda del cartón está marcada.
+ *
+ * **La casilla libre (`null`) siempre cuenta como marcada**, sin que salga
+ * ninguna balota: es la regla del bingo de 75 bolas. Tenerla en una función y
+ * no repartida por los componentes evita que alguna vista se olvide de ella y
+ * dé por incompleto un cartón que sí ganó.
+ */
+export function estaMarcada(
+  valor: number | null,
+  cantadas: ReadonlySet<number>,
+): boolean {
+  return valor === null || cantadas.has(valor)
+}
+
+/** Cuántas celdas del cartón están marcadas, contando la casilla libre. */
+export function contarMarcadas(
+  carton: MatrizCarton,
+  cantadas: ReadonlySet<number>,
+): number {
+  return carton.flat().filter((valor) => estaMarcada(valor, cantadas)).length
+}
+
 /** Devuelve la letra ('B', 'I', 'N', 'G' u 'O') de un número. */
 export function letraDeNumero(numero: number): string {
   const indice = RANGOS_POR_COLUMNA.findIndex(

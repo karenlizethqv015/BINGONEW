@@ -92,6 +92,40 @@ async def resumen_cartones(
     return ResumenCartones(total=sum(por_serie.values()), por_serie=por_serie)
 
 
+@router.get("/{serie}/{numero_carton}", response_model=CartonLeer)
+async def obtener_carton_por_codigo(
+    partida_id: int,
+    serie: str,
+    numero_carton: int,
+    db: AsyncSession = Depends(get_db),
+) -> Carton:
+    """Busca un cartón por su código visible dentro de la partida (ej. A-7).
+
+    Es como llega el jugador a su cartón en la Fase 1: escribiendo el código que
+    tiene a mano, sin login. La búsqueda de la serie ignora mayúsculas para que
+    «a-7» funcione igual que «A-7» al teclearlo desde un celular.
+    """
+    await _obtener_partida_o_404(db, partida_id)
+
+    carton = (
+        await db.execute(
+            select(Carton).where(
+                Carton.partida_id == partida_id,
+                func.lower(Carton.serie) == serie.lower(),
+                Carton.numero_carton == numero_carton,
+            )
+        )
+    ).scalar_one_or_none()
+
+    if carton is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No existe el cartón {serie.upper()}-{numero_carton} en esta partida.",
+        )
+
+    return carton
+
+
 @router.post("", response_model=list[CartonLeer], status_code=status.HTTP_201_CREATED)
 async def generar_cartones(
     partida_id: int,
