@@ -114,6 +114,36 @@ def generar_carton() -> Carton:
     return carton
 
 
+class SinBalotasDisponibles(Exception):
+    """Se pidió una balota cuando ya salieron las 75."""
+
+
+def sortear_balota(cantadas: set[int]) -> int:
+    """Saca una balota que no haya salido todavía en esta partida.
+
+    Sorteo **sin reemplazo**: se construye la lista de las que quedan y se elige
+    una de ahí, así que por definición no puede repetirse. No se sortea "hasta
+    que salga una nueva", que además de ser más lento se vuelve casi infinito al
+    final de la partida.
+
+    Usa `secrets`, el generador criptográficamente seguro, y NO `random`: es un
+    requisito de diseño del proyecto de cara a una futura certificación de GNA
+    ante Coljuegos.
+    """
+    restantes = [
+        numero
+        for numero in range(1, TOTAL_BALOTAS + 1)
+        if numero not in cantadas
+    ]
+
+    if not restantes:
+        raise SinBalotasDisponibles(
+            f"Ya salieron las {TOTAL_BALOTAS} balotas de la partida."
+        )
+
+    return restantes[secrets.randbelow(len(restantes))]
+
+
 def firma_carton(carton: Carton) -> str:
     """Huella única del cartón, para detectar duplicados dentro de una partida.
 

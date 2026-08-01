@@ -80,6 +80,20 @@ SesionLocal = async_sessionmaker(
 )
 
 
+def get_sesion_factory() -> async_sessionmaker[AsyncSession]:
+    """Dependencia que entrega la fábrica de sesiones, no una sesión.
+
+    La usan los endpoints WebSocket. Con `get_db` la sesión viviría lo que dure
+    la conexión —horas, en una sala llena—, reteniendo una conexión a la base
+    por cada pantalla conectada. Recibiendo la fábrica, el endpoint abre una
+    sesión, lee lo que necesita y la cierra de inmediato.
+
+    Es una dependencia y no `SesionLocal` a secas para que las pruebas puedan
+    sustituirla por la base de datos de pruebas.
+    """
+    return SesionLocal
+
+
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
     """Dependencia de FastAPI que entrega una sesión por petición.
 
