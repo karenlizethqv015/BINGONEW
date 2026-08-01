@@ -22,6 +22,32 @@ export const COLUMNA_LIBRE = 2
 /** Un patrón de figura: matriz 5x5 de booleanos. */
 export type Patron = boolean[][]
 
+/** Un cartón: matriz 5x5 de números, con `null` en la casilla libre. */
+export type MatrizCarton = (number | null)[][]
+
+/** Rango de números de cada columna, ambos extremos incluidos. */
+export const RANGOS_POR_COLUMNA: [number, number][] = [
+  [1, 15],
+  [16, 30],
+  [31, 45],
+  [46, 60],
+  [61, 75],
+]
+
+/** Total de balotas de una partida. */
+export const TOTAL_BALOTAS = 75
+
+/** Devuelve la letra ('B', 'I', 'N', 'G' u 'O') de un número. */
+export function letraDeNumero(numero: number): string {
+  const indice = RANGOS_POR_COLUMNA.findIndex(
+    ([desde, hasta]) => numero >= desde && numero <= hasta,
+  )
+  if (indice === -1) {
+    throw new Error(`${numero} no está entre 1 y ${TOTAL_BALOTAS}.`)
+  }
+  return LETRAS[indice]
+}
+
 export function esCeldaLibre(fila: number, columna: number): boolean {
   return fila === FILA_LIBRE && columna === COLUMNA_LIBRE
 }

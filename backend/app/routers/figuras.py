@@ -10,7 +10,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db import get_db
-from app.models.figura import Figura
+from app.models.figura import Figura, TipoFigura
 from app.models.partida_figura import PartidaFigura
 from app.schemas.figura import FiguraActualizar, FiguraCrear, FiguraLeer
 
@@ -48,9 +48,19 @@ async def _comprobar_nombre_libre(
 
 
 @router.get("", response_model=list[FiguraLeer])
-async def listar_figuras(db: AsyncSession = Depends(get_db)) -> list[Figura]:
-    """Devuelve el catálogo completo, de la más reciente a la más antigua."""
-    resultado = await db.execute(select(Figura).order_by(Figura.creado_en.desc()))
+async def listar_figuras(
+    tipo: TipoFigura | None = None, db: AsyncSession = Depends(get_db)
+) -> list[Figura]:
+    """Devuelve el catálogo, de la más reciente a la más antigua.
+
+    Con `?tipo=` devuelve solo las figuras de esa categoría, que es lo que pide
+    cada una de las tres listas de la pantalla de configuración de partida.
+    """
+    consulta = select(Figura)
+    if tipo is not None:
+        consulta = consulta.where(Figura.tipo == tipo)
+
+    resultado = await db.execute(consulta.order_by(Figura.creado_en.desc()))
     return list(resultado.scalars().all())
 
 
@@ -69,7 +79,7 @@ async def crear_figura(
     """Guarda una figura nueva en el catálogo."""
     await _comprobar_nombre_libre(db, datos.nombre)
 
-    figura = Figura(nombre=datos.nombre, patron=datos.patron)
+    figura = Figura(nombre=datos.nombre, patron=datos.patron, tipo=datos.tipo)
     db.add(figura)
     await db.commit()
     await db.refresh(figura)
@@ -89,6 +99,9 @@ async def actualizar_figura(
 
     if datos.patron is not None:
         figura.patron = datos.patron
+
+    if datos.tipo is not None:
+        figura.tipo = datos.tipo
 
     await db.commit()
     await db.refresh(figura)

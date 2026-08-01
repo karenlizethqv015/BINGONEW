@@ -3,28 +3,15 @@
  */
 
 import type { Patron } from '@/lib/bingo'
+import type { TipoFigura } from '@/lib/figuras'
 import { pedir } from '@/lib/http'
 
 const BASE = '/api/partidas'
 
 export type EstadoPartida = 'pendiente' | 'en_curso' | 'pausada' | 'finalizada'
 
-/**
- * Categoría con la que se agrupa una forma dentro de la partida.
- *
- * Es puramente organizativa: ayuda al administrador a encontrar las formas al
- * armar la partida. No cambia cómo se gana (eso lo define el patrón de la
- * figura) ni cuánto se paga (eso lo define el premio propio de cada forma).
- *
- * Tampoco son etapas: todas las formas de la partida juegan a la vez.
- */
-export type TipoPremio = 'sencillo' | 'figura' | 'pleno'
-
-export const TIPOS_PREMIO: { valor: TipoPremio; etiqueta: string }[] = [
-  { valor: 'sencillo', etiqueta: 'Sencillo' },
-  { valor: 'figura', etiqueta: 'Figura' },
-  { valor: 'pleno', etiqueta: 'Pleno' },
-]
+// La categoría (sencillo/figura/pleno) es una propiedad de la figura en el
+// catálogo, no de la selección: ver `TipoFigura` en `@/lib/figuras`.
 
 export const ETIQUETA_ESTADO: Record<EstadoPartida, string> = {
   pendiente: 'Pendiente',
@@ -36,8 +23,8 @@ export const ETIQUETA_ESTADO: Record<EstadoPartida, string> = {
 /** Una forma de ganar ya seleccionada en una partida. */
 export interface FormaSeleccionada {
   id: number
-  figura: { id: number; nombre: string; patron: Patron }
-  tipo_premio: TipoPremio
+  figura: { id: number; nombre: string; patron: Patron; tipo: TipoFigura }
+  /** Premio de esta forma. Cada una tiene el suyo, independiente del resto. */
   valor_premio: number
   orden: number
 }
@@ -56,10 +43,12 @@ export interface Partida {
   premio_total: number
 }
 
-/** Una forma de ganar que se quiere incluir. El orden sale de la posición. */
+/**
+ * Una forma de ganar que se quiere incluir. No lleva categoría: esa es una
+ * propiedad de la figura en el catálogo.
+ */
 export interface FormaAElegir {
   figura_id: number
-  tipo_premio: TipoPremio
   valor_premio: number
 }
 

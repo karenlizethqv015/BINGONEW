@@ -11,38 +11,33 @@ import {
   CardTitle,
 } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
-import { listarFiguras, type Figura } from '@/lib/figuras'
+import { TIPOS_FIGURA, listarFiguras, type Figura } from '@/lib/figuras'
 import {
-  TIPOS_PREMIO,
   definirFormas,
   formatearPesos,
   obtenerPartida,
   type FormaAElegir,
   type Partida,
-  type TipoPremio,
 } from '@/lib/partidas'
 
 /** Una forma en el editor: la figura completa, para poder dibujarla. */
 interface FormaEnEdicion {
-  figura: Pick<Figura, 'id' | 'nombre' | 'patron'>
-  tipo_premio: TipoPremio
+  figura: Pick<Figura, 'id' | 'nombre' | 'patron' | 'tipo'>
   valor_premio: number
 }
 
 /**
  * Selección de formas de ganar de una partida — tarea #2 de la Fase 1.
  *
- * Equivale a la pantalla "Configurar/Editar Juego" de la app anterior. El
- * administrador reparte las figuras del catálogo entre las tres categorías
- * (sencillo, figura, pleno) y le pone premio a cada una.
+ * Equivale a la pantalla "Configurar/Editar Juego" de la app anterior. Cada una
+ * de las tres categorías ofrece **solo las figuras que el administrador
+ * clasificó ahí** en el catálogo (`/admin/figuras`), y a cada forma elegida se
+ * le fija su propio premio.
  *
- * Las categorías son **solo organizativas**: ayudan a encontrar las formas al
- * armar la partida. Cómo se gana lo define el patrón de cada figura, y cuánto
- * se paga, el premio propio de cada forma.
- *
- * Tampoco son etapas sucesivas: todas las formas configuradas juegan al mismo
- * tiempo y gana quien complete cualquiera de ellas. Por eso aquí no hay orden
- * de juego que configurar.
+ * Las categorías son solo organizativas: cómo se gana lo define el patrón de
+ * cada figura. Tampoco son etapas — todas las formas juegan al mismo tiempo —,
+ * así que no hay orden de juego que configurar, ni tiene sentido sumar los
+ * premios por categoría: son independientes entre sí.
  */
 export function ConfigurarPartida() {
   const { id } = useParams<{ id: string }>()
@@ -70,7 +65,6 @@ export function ConfigurarPartida() {
       setSeleccion(
         datosPartida.figuras.map((forma) => ({
           figura: forma.figura,
-          tipo_premio: forma.tipo_premio,
           valor_premio: forma.valor_premio,
         })),
       )
@@ -93,14 +87,10 @@ export function ConfigurarPartida() {
   }
 
   const idsElegidos = new Set(seleccion.map((f) => f.figura.id))
-  // Una figura se usa a lo sumo una vez por partida: si estuviera en dos
-  // categorías a la vez y un cartón la completara, no habría forma de saber
-  // cuál de los dos premios corresponde.
-  const disponibles = catalogo.filter((f) => !idsElegidos.has(f.id))
   const premioTotal = seleccion.reduce((suma, f) => suma + (f.valor_premio || 0), 0)
 
-  const agregar = (figura: Figura, tipo: TipoPremio) =>
-    cambiar([...seleccion, { figura, tipo_premio: tipo, valor_premio: 0 }])
+  const agregar = (figura: Figura) =>
+    cambiar([...seleccion, { figura, valor_premio: 0 }])
 
   const quitar = (figuraId: number) =>
     cambiar(seleccion.filter((f) => f.figura.id !== figuraId))
@@ -119,7 +109,6 @@ export function ConfigurarPartida() {
     try {
       const formas: FormaAElegir[] = seleccion.map((f) => ({
         figura_id: f.figura.id,
-        tipo_premio: f.tipo_premio,
         valor_premio: f.valor_premio || 0,
       }))
       const actualizada = await definirFormas(partidaId, formas)
@@ -170,10 +159,16 @@ export function ConfigurarPartida() {
           · Formas de ganar
         </h1>
         <p className="max-w-3xl text-muted-foreground">
-          Reparte las figuras del catálogo entre las tres categorías y ponle su
-          premio a cada una. Las categorías solo sirven para organizarlas: todas
-          las formas juegan al mismo tiempo y gana quien complete el patrón de
-          cualquiera de ellas.
+          Cada categoría ofrece solo las figuras que clasificaste en ella dentro
+          del{' '}
+          <Link
+            to="/admin/figuras"
+            className="text-primary underline-offset-4 hover:underline"
+          >
+            catálogo
+          </Link>
+          . Ponle a cada forma su propio premio; todas juegan al mismo tiempo y
+          gana quien complete el patrón de cualquiera de ellas.
         </p>
       </header>
 
@@ -188,7 +183,7 @@ export function ConfigurarPartida() {
             </span>
           </span>
           <span className="text-muted-foreground">
-            Premios:{' '}
+            Total en premios:{' '}
             <span className="font-semibold tabular text-success">
               {formatearPesos(premioTotal)}
             </span>
@@ -196,9 +191,7 @@ export function ConfigurarPartida() {
           {sinGuardar && (
             <span className="text-primary">Hay cambios sin guardar</span>
           )}
-          {aviso && !sinGuardar && (
-            <span className="text-success">{aviso}</span>
-          )}
+          {aviso && !sinGuardar && <span className="text-success">{aviso}</span>}
         </div>
 
         <Button onClick={() => void guardar()} disabled={guardando}>
@@ -229,12 +222,14 @@ export function ConfigurarPartida() {
       )}
 
       <div className="grid gap-4 xl:grid-cols-3">
-        {TIPOS_PREMIO.map((tipo) => {
-          const formas = seleccion.filter((f) => f.tipo_premio === tipo.valor)
-          const subtotal = formas.reduce(
-            (suma, f) => suma + (f.valor_premio || 0),
-            0,
+        {TIPOS_FIGURA.map((tipo) => {
+          // Cada categoría solo muestra y solo ofrece figuras clasificadas en
+          // ella: la clasificación viene del catálogo, no de esta pantalla.
+          const formas = seleccion.filter((f) => f.figura.tipo === tipo.valor)
+          const disponibles = catalogo.filter(
+            (f) => f.tipo === tipo.valor && !idsElegidos.has(f.id),
           )
+          const enCatalogo = catalogo.filter((f) => f.tipo === tipo.valor).length
 
           return (
             <Card key={tipo.valor} className="flex flex-col">
@@ -246,13 +241,9 @@ export function ConfigurarPartida() {
                   </span>
                 </CardTitle>
                 <CardDescription>
-                  {formas.length === 0 ? (
-                    'Sin formas todavía.'
-                  ) : (
-                    <span className="tabular text-success">
-                      {formatearPesos(subtotal)}
-                    </span>
-                  )}
+                  {enCatalogo === 0
+                    ? 'No hay figuras clasificadas en esta categoría.'
+                    : `${formas.length} de ${enCatalogo} en juego.`}
                 </CardDescription>
               </CardHeader>
 
@@ -276,16 +267,28 @@ export function ConfigurarPartida() {
                         {forma.figura.nombre}
                       </p>
                       <Input
-                        type="number"
-                        min={0}
-                        step={1000}
-                        value={forma.valor_premio}
+                        // type="text" y no "number": el campo se escribe a
+                        // mano, sin flechas de incremento ni rueda del ratón.
+                        type="text"
+                        inputMode="numeric"
+                        value={forma.valor_premio === 0 ? '' : forma.valor_premio}
+                        placeholder="Premio"
                         aria-label={`Premio de ${forma.figura.nombre}`}
                         onChange={(e) =>
-                          cambiarPremio(forma.figura.id, Number(e.target.value) || 0)
+                          cambiarPremio(
+                            forma.figura.id,
+                            // Solo dígitos: evita comas, puntos y signos que
+                            // luego habría que interpretar.
+                            Number(e.target.value.replace(/\D/g, '')) || 0,
+                          )
                         }
                         className="h-8 tabular"
                       />
+                      {forma.valor_premio > 0 && (
+                        <p className="text-xs tabular text-success">
+                          {formatearPesos(forma.valor_premio)}
+                        </p>
+                      )}
                     </div>
 
                     <Button
@@ -299,8 +302,6 @@ export function ConfigurarPartida() {
                   </div>
                 ))}
 
-                {/* Agregar dentro de esta categoría. El desplegable solo lista
-                    figuras que no estén ya en ninguna otra. */}
                 <select
                   value=""
                   disabled={disponibles.length === 0}
@@ -309,14 +310,16 @@ export function ConfigurarPartida() {
                     const figura = catalogo.find(
                       (f) => f.id === Number(e.target.value),
                     )
-                    if (figura) agregar(figura, tipo.valor)
+                    if (figura) agregar(figura)
                   }}
                   className="mt-auto h-9 w-full rounded-md border border-dashed border-border bg-transparent px-2 text-sm text-muted-foreground transition-colors hover:border-primary/60 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
                 >
                   <option value="">
-                    {disponibles.length === 0
-                      ? 'No quedan figuras libres'
-                      : `+ Agregar a ${tipo.etiqueta}`}
+                    {enCatalogo === 0
+                      ? 'Sin figuras en esta categoría'
+                      : disponibles.length === 0
+                        ? 'Todas ya están en juego'
+                        : `+ Agregar a ${tipo.etiqueta}`}
                   </option>
                   {disponibles.map((figura) => (
                     <option key={figura.id} value={figura.id}>

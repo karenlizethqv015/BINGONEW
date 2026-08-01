@@ -5,8 +5,8 @@ from datetime import datetime
 from pydantic import BaseModel, ConfigDict, Field, computed_field, model_validator
 
 from app.dominio.bingo import Patron
+from app.models.figura import TipoFigura
 from app.models.partida import EstadoPartida
-from app.models.partida_figura import TipoPremio
 
 
 class FiguraResumen(BaseModel):
@@ -17,6 +17,9 @@ class FiguraResumen(BaseModel):
     id: int
     nombre: str
     patron: Patron
+    #: Categoría del catálogo. Es lo que decide en cuál de las tres listas
+    #: aparece la forma; no se guarda aquí, viene de la figura.
+    tipo: TipoFigura
 
 
 class FormaSeleccionada(BaseModel):
@@ -26,16 +29,20 @@ class FormaSeleccionada(BaseModel):
 
     id: int
     figura: FiguraResumen
-    tipo_premio: TipoPremio
+    #: Premio de esta forma en concreto. Cada una tiene el suyo y son
+    #: independientes entre sí.
     valor_premio: int
     orden: int
 
 
 class FormaAElegir(BaseModel):
-    """Una forma de ganar que se quiere incluir en la partida."""
+    """Una forma de ganar que se quiere incluir en la partida.
+
+    No lleva categoría: la clasificación es una propiedad de la figura en el
+    catálogo, no de esta selección.
+    """
 
     figura_id: int
-    tipo_premio: TipoPremio = TipoPremio.FIGURA
     valor_premio: int = Field(default=0, ge=0)
 
 

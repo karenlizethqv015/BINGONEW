@@ -14,7 +14,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
 from app.db import engine
 from app.realtime.manager import gestor
-from app.routers import figuras, health, partidas
+from app.routers import cartones, figuras, health, partidas
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -50,6 +50,7 @@ app.add_middleware(
 app.include_router(health.router)
 app.include_router(figuras.router)
 app.include_router(partidas.router)
+app.include_router(cartones.router)
 
 
 @app.websocket("/ws/echo")

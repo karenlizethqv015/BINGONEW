@@ -4,7 +4,13 @@ import { CuadriculaFigura } from '@/components/figuras/CuadriculaFigura'
 import { EditorFigura } from '@/components/figuras/EditorFigura'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
-import { eliminarFigura, listarFiguras, type Figura } from '@/lib/figuras'
+import {
+  ETIQUETA_TIPO,
+  TIPOS_FIGURA,
+  eliminarFigura,
+  listarFiguras,
+  type Figura,
+} from '@/lib/figuras'
 import { cn } from '@/lib/utils'
 
 /**
@@ -115,8 +121,25 @@ export function Figuras() {
               </CardContent>
             </Card>
           ) : (
-            <ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-              {figuras.map((figura) => (
+            TIPOS_FIGURA.map((tipo) => {
+              const delTipo = figuras.filter((f) => f.tipo === tipo.valor)
+
+              return (
+                <section key={tipo.valor} className="space-y-2">
+                  <h3 className="flex items-baseline gap-2 text-sm font-semibold uppercase tracking-wider text-primary">
+                    {tipo.etiqueta}
+                    <span className="text-xs font-normal normal-case tracking-normal text-muted-foreground tabular">
+                      {delTipo.length}
+                    </span>
+                  </h3>
+
+                  {delTipo.length === 0 ? (
+                    <p className="rounded-md border border-dashed border-border px-3 py-2 text-sm text-muted-foreground">
+                      Ninguna figura clasificada como {tipo.etiqueta.toLowerCase()}.
+                    </p>
+                  ) : (
+                    <ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                      {delTipo.map((figura) => (
                 <li key={figura.id}>
                   <Card
                     className={cn(
@@ -135,9 +158,13 @@ export function Figuras() {
                           <p className="truncate font-semibold" title={figura.nombre}>
                             {figura.nombre}
                           </p>
-                          <p className="text-xs text-muted-foreground tabular">
-                            {figura.celdas_marcadas}{' '}
-                            {figura.celdas_marcadas === 1 ? 'celda' : 'celdas'}
+                          <p className="text-xs text-muted-foreground">
+                            <span className="tabular">
+                              {figura.celdas_marcadas}{' '}
+                              {figura.celdas_marcadas === 1 ? 'celda' : 'celdas'}
+                            </span>
+                            {' · '}
+                            {ETIQUETA_TIPO[figura.tipo]}
                           </p>
                         </div>
                       </div>
@@ -185,8 +212,12 @@ export function Figuras() {
                     </CardContent>
                   </Card>
                 </li>
-              ))}
-            </ul>
+                      ))}
+                    </ul>
+                  )}
+                </section>
+              )
+            })
           )}
         </section>
       </div>

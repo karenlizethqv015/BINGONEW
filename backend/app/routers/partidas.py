@@ -157,7 +157,6 @@ async def definir_formas(
         partida.figuras.append(
             PartidaFigura(
                 figura_id=forma.figura_id,
-                tipo_premio=forma.tipo_premio,
                 valor_premio=forma.valor_premio,
                 orden=posicion,
             )

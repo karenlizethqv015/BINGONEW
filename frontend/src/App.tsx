@@ -2,6 +2,7 @@ import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 
 import { Layout } from '@/components/Layout'
 import { Admin } from '@/pages/Admin'
+import { CartonesPartida } from '@/pages/CartonesPartida'
 import { ConfigurarPartida } from '@/pages/ConfigurarPartida'
 import { Figuras } from '@/pages/Figuras'
 import { Inicio } from '@/pages/Inicio'
@@ -27,6 +28,7 @@ export default function App() {
           <Route path="/admin/figuras" element={<Figuras />} />
           <Route path="/admin/partidas" element={<Partidas />} />
           <Route path="/admin/partidas/:id" element={<ConfigurarPartida />} />
+          <Route path="/admin/partidas/:id/cartones" element={<CartonesPartida />} />
           <Route path="/transmision" element={<Transmision />} />
           <Route path="/jugador" element={<Jugador />} />
           <Route path="/vendedor" element={<Vendedor />} />

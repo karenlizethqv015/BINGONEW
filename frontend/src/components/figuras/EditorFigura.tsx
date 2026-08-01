@@ -12,9 +12,11 @@ import {
 import { Input } from '@/components/ui/input'
 import { PLANTILLAS, contarCeldas, patronVacio, type Patron } from '@/lib/bingo'
 import {
+  TIPOS_FIGURA,
   actualizarFigura,
   crearFigura,
   type Figura,
+  type TipoFigura,
 } from '@/lib/figuras'
 
 interface Props {
@@ -28,6 +30,7 @@ interface Props {
 export function EditorFigura({ editando, onGuardada, onCancelar }: Props) {
   const [nombre, setNombre] = useState('')
   const [patron, setPatron] = useState<Patron>(patronVacio)
+  const [tipo, setTipo] = useState<TipoFigura>('figura')
   const [error, setError] = useState<string | null>(null)
   const [guardando, setGuardando] = useState(false)
   const refNombre = useRef<HTMLInputElement>(null)
@@ -37,6 +40,7 @@ export function EditorFigura({ editando, onGuardada, onCancelar }: Props) {
   useEffect(() => {
     setNombre(editando?.nombre ?? '')
     setPatron(editando?.patron ?? patronVacio())
+    setTipo(editando?.tipo ?? 'figura')
     setError(null)
   }, [editando])
 
@@ -67,7 +71,7 @@ export function EditorFigura({ editando, onGuardada, onCancelar }: Props) {
     setGuardando(true)
     setError(null)
     try {
-      const datos = { nombre: nombre.trim(), patron }
+      const datos = { nombre: nombre.trim(), patron, tipo }
       const figura = editando
         ? await actualizarFigura(editando.id, datos)
         : await crearFigura(datos)
@@ -75,6 +79,8 @@ export function EditorFigura({ editando, onGuardada, onCancelar }: Props) {
       onGuardada(figura)
       if (!editando) {
         // Tras crear, se deja el formulario limpio para encadenar otra figura.
+        // El tipo se conserva: lo normal es clasificar varias seguidas en la
+        // misma categoría.
         setNombre('')
         setPatron(patronVacio())
       }
@@ -121,6 +127,28 @@ export function EditorFigura({ editando, onGuardada, onCancelar }: Props) {
               if (e.key === 'Enter' && !guardando) void guardar()
             }}
           />
+        </div>
+
+        <div className="space-y-1.5">
+          <label htmlFor="tipo-figura" className="text-sm font-medium">
+            Categoría
+          </label>
+          <select
+            id="tipo-figura"
+            value={tipo}
+            onChange={(e) => setTipo(e.target.value as TipoFigura)}
+            className="h-10 w-full rounded-md border border-input bg-surface-2 px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+          >
+            {TIPOS_FIGURA.map((opcion) => (
+              <option key={opcion.valor} value={opcion.valor}>
+                {opcion.etiqueta}
+              </option>
+            ))}
+          </select>
+          <p className="text-xs text-muted-foreground">
+            Al armar una partida, cada categoría ofrecerá solo las figuras
+            clasificadas aquí.
+          </p>
         </div>
 
         <CuadriculaFigura patron={patron} onChange={setPatron} />

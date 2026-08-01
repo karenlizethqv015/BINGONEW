@@ -5,10 +5,12 @@ from httpx import AsyncClient
 Patron = list[list[bool]]
 
 
-async def _crear_figura(cliente: AsyncClient, nombre: str, patron: Patron) -> int:
+async def _crear_figura(
+    cliente: AsyncClient, nombre: str, patron: Patron, tipo: str = "figura"
+) -> int:
     """Crea una figura del catálogo y devuelve su id."""
     respuesta = await cliente.post(
-        "/api/figuras", json={"nombre": nombre, "patron": patron}
+        "/api/figuras", json={"nombre": nombre, "patron": patron, "tipo": tipo}
     )
     assert respuesta.status_code == 201
     return respuesta.json()["id"]
@@ -109,8 +111,8 @@ async def test_definir_formas(
         f"/api/partidas/{partida['id']}/formas",
         json={
             "formas": [
-                {"figura_id": linea, "tipo_premio": "sencillo", "valor_premio": 50000},
-                {"figura_id": esquinas, "tipo_premio": "pleno", "valor_premio": 150000},
+                {"figura_id": linea, "valor_premio": 50000},
+                {"figura_id": esquinas, "valor_premio": 150000},
             ]
         },
     )
@@ -124,9 +126,10 @@ async def test_definir_formas(
     # El orden de juego sale de la posición en la lista.
     assert [f["orden"] for f in datos["figuras"]] == [1, 2]
     assert datos["figuras"][0]["figura"]["nombre"] == "Línea"
-    assert datos["figuras"][0]["tipo_premio"] == "sencillo"
-    # El patrón viaja completo: lo necesita el tablero de transmisión.
+    # El patrón y la categoría viajan completos: el patrón lo necesita el
+    # tablero de transmisión, y la categoría, la pantalla de configuración.
     assert datos["figuras"][0]["figura"]["patron"] == patron_linea
+    assert datos["figuras"][0]["figura"]["tipo"] == "figura"
 
 
 async def test_redefinir_reemplaza_la_seleccion_anterior(
@@ -314,22 +317,28 @@ async def test_rechaza_premio_negativo(
     assert respuesta.status_code == 422
 
 
-async def test_rechaza_tipo_de_premio_desconocido(
+async def test_la_seleccion_ignora_cualquier_categoria_que_le_manden(
     cliente: AsyncClient, patron_linea: Patron
 ) -> None:
-    linea = await _crear_figura(cliente, "Línea", patron_linea)
+    """La categoría es de la figura, no de la selección.
+
+    Si un cliente viejo enviara `tipo_premio`, debe descartarse en silencio y
+    seguir mandando la categoría de la figura del catálogo.
+    """
+    linea = await _crear_figura(cliente, "Línea", patron_linea, tipo="pleno")
     partida = await _crear_partida(cliente)
 
     respuesta = await cliente.put(
         f"/api/partidas/{partida['id']}/formas",
         json={
             "formas": [
-                {"figura_id": linea, "tipo_premio": "inventado", "valor_premio": 0}
+                {"figura_id": linea, "tipo_premio": "sencillo", "valor_premio": 0}
             ]
         },
     )
 
-    assert respuesta.status_code == 422
+    assert respuesta.status_code == 200
+    assert respuesta.json()["figuras"][0]["figura"]["tipo"] == "pleno"
 
 
 # --- Protección del catálogo ------------------------------------------------

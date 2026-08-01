@@ -8,12 +8,41 @@ tarea #2 (ver docs/08-modelo-datos.md).
 """
 
 from datetime import datetime
+from enum import Enum
 
-from sqlalchemy import JSON, DateTime, Integer, String, func
+from sqlalchemy import JSON, DateTime, Enum as SQLEnum, Integer, String, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
 from app.dominio.bingo import Patron
+
+
+class TipoFigura(str, Enum):
+    """Categoría con la que el administrador clasifica una figura del catálogo.
+
+    Es **puramente organizativa**: sirve para encontrar las figuras al armar una
+    partida. No cambia cómo se gana (eso lo define el patrón) ni cuánto se paga
+    (eso lo define el premio, que se fija por partida y es propio de cada forma).
+
+    Vive en la figura y no en `partida_figura` porque la clasificación es una
+    propiedad estable del catálogo: el administrador la define una vez, y al
+    configurar una partida cada categoría le ofrece solo las figuras que él
+    mismo clasificó ahí.
+    """
+
+    SENCILLO = "sencillo"
+    FIGURA = "figura"
+    PLENO = "pleno"
+
+
+#: Se guarda como texto y no como el ENUM nativo del motor: SQLite no lo tiene y
+#: en PostgreSQL cambiar sus valores obliga a una migración incómoda.
+TipoTipoFigura = SQLEnum(
+    TipoFigura,
+    native_enum=False,
+    values_callable=lambda enum: [miembro.value for miembro in enum],
+    length=20,
+)
 
 
 class Figura(Base):
@@ -32,6 +61,12 @@ class Figura(Base):
     #: NUNCA JSONB — para que el modelo siga funcionando igual en SQLite (demo)
     #: y en PostgreSQL (producción en LAN). Ver backend/README.md.
     patron: Mapped[Patron] = mapped_column(JSON, nullable=False)
+
+    #: Categoría del catálogo. Determina en cuál de las tres listas aparece la
+    #: figura al configurar una partida.
+    tipo: Mapped[TipoFigura] = mapped_column(
+        TipoTipoFigura, nullable=False, default=TipoFigura.FIGURA, index=True
+    )
 
     #: Usuario que la creó. Queda nullable y SIN llave foránea a propósito: la
     #: tabla `usuario` es de la Fase 2 y todavía no existe. Al implementar el

@@ -114,6 +114,86 @@ async def test_eliminar_figura(cliente: AsyncClient, patron_linea: Patron) -> No
     assert (await cliente.get("/api/figuras")).json() == []
 
 
+# --- Clasificación por tipo -------------------------------------------------
+
+
+async def test_el_tipo_por_defecto_es_figura(
+    cliente: AsyncClient, patron_linea: Patron
+) -> None:
+    creada = (
+        await cliente.post(
+            "/api/figuras", json={"nombre": "Sin tipo", "patron": patron_linea}
+        )
+    ).json()
+
+    assert creada["tipo"] == "figura"
+
+
+async def test_crear_con_tipo(cliente: AsyncClient, patron_linea: Patron) -> None:
+    creada = (
+        await cliente.post(
+            "/api/figuras",
+            json={"nombre": "Línea", "patron": patron_linea, "tipo": "sencillo"},
+        )
+    ).json()
+
+    assert creada["tipo"] == "sencillo"
+
+
+async def test_reclasificar_una_figura(
+    cliente: AsyncClient, patron_linea: Patron
+) -> None:
+    creada = (
+        await cliente.post(
+            "/api/figuras",
+            json={"nombre": "Línea", "patron": patron_linea, "tipo": "sencillo"},
+        )
+    ).json()
+
+    actualizada = (
+        await cliente.put(f"/api/figuras/{creada['id']}", json={"tipo": "pleno"})
+    ).json()
+
+    assert actualizada["tipo"] == "pleno"
+    # Reclasificar no debe tocar el patrón.
+    assert actualizada["patron"] == patron_linea
+
+
+async def test_filtrar_el_catalogo_por_tipo(
+    cliente: AsyncClient, patron_linea: Patron, patron_esquinas: Patron
+) -> None:
+    """Es lo que pide cada una de las tres listas al configurar una partida."""
+    await cliente.post(
+        "/api/figuras",
+        json={"nombre": "Línea", "patron": patron_linea, "tipo": "sencillo"},
+    )
+    await cliente.post(
+        "/api/figuras",
+        json={"nombre": "Esquinas", "patron": patron_esquinas, "tipo": "pleno"},
+    )
+
+    sencillos = (
+        await cliente.get("/api/figuras", params={"tipo": "sencillo"})
+    ).json()
+    plenos = (await cliente.get("/api/figuras", params={"tipo": "pleno"})).json()
+
+    assert [f["nombre"] for f in sencillos] == ["Línea"]
+    assert [f["nombre"] for f in plenos] == ["Esquinas"]
+    # Sin filtro salen todas.
+    assert len((await cliente.get("/api/figuras")).json()) == 2
+
+
+async def test_rechaza_tipo_desconocido(
+    cliente: AsyncClient, patron_linea: Patron
+) -> None:
+    respuesta = await cliente.post(
+        "/api/figuras",
+        json={"nombre": "Rara", "patron": patron_linea, "tipo": "carambola"},
+    )
+
+    assert respuesta.status_code == 422
+
+
 # --- Reglas de validación ---------------------------------------------------
 
 
