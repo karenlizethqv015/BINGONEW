@@ -2,7 +2,7 @@
 
 > Claude Code debe actualizar este archivo cada vez que complete una tarea: marcar el checkbox, agregar fecha y una línea breve de qué se hizo o qué decisión se tomó. No se debe reordenar la prioridad de fases sin que la usuaria lo pida.
 
-Última actualización: 2026-07-30 (Fase 1, tarea #1 — módulo de creación de figuras — completa).
+Última actualización: 2026-07-30 (Fase 1, tarea #2 — selección de formas por partida — completa).
 
 ---
 
@@ -24,7 +24,7 @@ Los comandos están en la sección `## Comandos` de `CLAUDE.md`. En corto: uvico
 Orden sugerido de implementación (cada una debe funcionar de punta a punta antes de pasar a la siguiente):
 
 - [x] **1. Módulo de creación de figuras** — cuadrícula editable tipo BINGO, guardar/nombrar patrón en catálogo. (`docs/09-modulos-desarrollo.md` #5, `docs/08-modelo-datos.md` tabla `figura`) — 2026-07-30. CRUD completo en `/api/figuras` (tabla `figura`, patrón como matriz 5x5 en JSON) y pantalla `/admin/figuras` con cuadrícula editable que se pinta arrastrando, 6 plantillas de figuras comunes, catálogo con vista previa en miniatura, y edición/borrado con confirmación. 17 pruebas nuevas de backend más 9 comprobaciones de punta a punta contra el proxy. **La cuadrícula es 5x5, no 5x25 — ver la nota de la bitácora.**
-- [ ] **2. Módulo de selección de formas por partida** — elegir figuras del catálogo para la partida activa, definir tipo de premio y valor. (`docs/09-modulos-desarrollo.md` #6, tabla `partida_figura`)
+- [x] **2. Módulo de selección de formas por partida** — elegir figuras del catálogo para la partida activa, definir tipo de premio y valor. (`docs/09-modulos-desarrollo.md` #6, tabla `partida_figura`) — 2026-07-30. Tablas `partida` (simplificada, sin jornada) y `partida_figura`, con `PUT /api/partidas/{id}/formas` que reemplaza la selección completa de una vez. Pantallas `/admin/partidas` (crear/listar) y `/admin/partidas/{id}`, esta última dividida en las tres categorías (sencillo, figura, pleno) donde el admin reparte las figuras del catálogo y le pone premio a cada una, con subtotal por categoría y total en vivo. 24 pruebas nuevas de backend más 11 comprobaciones de punta a punta. También se saldó la deuda de la tarea #1: ya no se puede borrar del catálogo una figura que una partida esté usando (409).
 - [ ] **3. Generación de cartones virtuales** — algoritmo de cartones únicos 5x5, sin duplicados dentro de la partida. (`docs/09-modulos-desarrollo.md` #7, tabla `carton`)
 - [ ] **4. Balotera virtual** — sorteo aleatorio criptográficamente seguro (`secrets`), sin repetición, rangos B-I-N-G-O, emisión por WebSocket, registro en `balota_cantada`. (`docs/09-modulos-desarrollo.md` #9 y detalle de balotera virtual)
 - [ ] **5. Cartón del jugador con marcado automático** — vista celular/web que tacha en tiempo real los números cantados recibidos por WebSocket. (`docs/09-modulos-desarrollo.md` #11)
@@ -78,5 +78,22 @@ Orden sugerido de implementación (cada una debe funcionar de punta a punta ante
 - 2026-07-30 — **Borrado de figuras: es borrado real, no lógico.** Sirve mientras el catálogo no esté referenciado por nada. En la tarea #2, al crear `partida_figura`, hay que impedir borrar una figura ya jugada o pasar a borrado lógico, o se rompe el historial de ganadores. Queda anotado en el docstring del endpoint.
 
 - 2026-07-30 — **Las pruebas corren contra una base de datos propia en memoria**, no contra `bingo.db`, sobreescribiendo la dependencia `get_db`. El esquema se crea y se destruye en cada prueba, así que el orden en que corran no cambia el resultado.
+
+- 2026-07-30 — **`partida` es una versión simplificada en la Fase 1.** No cuelga de una jornada ni de una sala, y no guarda quién la creó: `jornada`, `sala` y `usuario` son de la Fase 2. Tampoco lleva los indicadores de Progresivo, Loco Bingo ni Reyes (Fase 3). Quedan solo el consecutivo, el estado, el precio del cartón y los segundos entre balotas, que es lo mínimo para colgarle formas de ganar, cartones y balotas.
+
+- 2026-07-30 — **`tipo_premio` (sencillo/figura/pleno) es una categoría puramente organizativa** — resuelto con la usuaria tras un par de vueltas. Sirve para que el administrador encuentre y agrupe las formas al armar la partida, y nada más:
+  - **Cómo se gana** lo define el patrón de la figura, y solo eso. La categoría no cambia la condición de victoria. *(Esto corrige una lectura intermedia de esta misma sesión, en la que se llegó a asumir lo contrario: la tarea #8 NO necesita ninguna regla adicional por categoría.)*
+  - **Cuánto se paga** lo define `valor_premio`, que es propio de cada forma. La categoría tampoco influye en el premio.
+  - **La asignación de categoría vive en la configuración de la partida**, no en el catálogo de figuras (`/admin/figuras`). Una figura no pertenece a una categoría de forma permanente: se clasifica partida por partida.
+
+- 2026-07-30 — **Las tres categorías NO son etapas sucesivas: todas las formas de una partida juegan al mismo tiempo** — confirmado por la usuaria. La partida simplemente espera a que alguien complete cualquiera de las formas configuradas y cante bingo. En consecuencia, el campo `orden` de `partida_figura` quedó como **orden de presentación**, no de juego, y la pantalla de configuración no ofrece reordenar (sería una decisión sin efecto).
+
+- 2026-07-30 — **Una figura se usa a lo sumo una vez por partida**, aunque haya tres categorías. Si la misma figura estuviera en dos categorías a la vez y un cartón la completara, no habría forma de decidir cuál de los dos premios corresponde. Lo garantiza el índice único `(partida_id, figura_id)`.
+
+- 2026-07-30 — **El consecutivo de partida se deriva del `id`, no de `MAX(numero_consecutivo) + 1`.** Con el máximo, borrar la última partida hacía que la siguiente repitiera su número, y dos partidas con el mismo "Juego No." serían indistinguibles en el historial de ganadores. La tabla `partida` usa `sqlite_autoincrement=True` para que SQLite tampoco reutilice ids (por defecto sí lo hace; las secuencias de PostgreSQL ya se comportan bien). En la Fase 2, con `jornada`, el consecutivo pasa a ser diario y dejará de coincidir con el id.
+
+- 2026-07-30 — **Se activó `PRAGMA foreign_keys=ON` para SQLite** en `app/db.py`. SQLite ignora las llaves foráneas por defecto: sin esto, el `ON DELETE RESTRICT` de `partida_figura` no impediría nada. PostgreSQL las aplica siempre, así que es exclusivo de la demo.
+
+- 2026-07-30 — **La selección de formas se reemplaza entera (`PUT .../formas`), no de a una.** La pantalla de configuración es una lista que el administrador arma completa y guarda, así que una sola operación evita estados intermedios raros como órdenes duplicados a medio guardar. El `orden` de juego sale de la posición en la lista, no se envía. Detalle de implementación importante: hay que hacer `flush()` después de vaciar la selección y antes de insertar la nueva, porque en un mismo flush SQLAlchemy emite los INSERT antes que los DELETE y choca contra el índice único `(partida_id, figura_id)` en cuanto una figura se repite entre la selección vieja y la nueva — que es el caso normal al reordenar o cambiar un premio.
 
 - 2026-07-30 — **Aviso de seguridad de `react-router` que se decidió NO atender:** `npm audit` reporta `GHSA-qwww-vcr4-c8h2` (severidad alta) en `react-router` 7.18.2. Aplica solo al **modo RSC** con server actions; esta aplicación es una SPA puramente de cliente, así que no la afecta. Además, la versión instalada es la última publicada y la corrección que sugiere npm (7.11.0) es *anterior*. Revisar cuando salga una versión parcheada.

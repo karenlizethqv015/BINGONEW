@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db import get_db
 from app.models.figura import Figura
+from app.models.partida_figura import PartidaFigura
 from app.schemas.figura import FiguraActualizar, FiguraCrear, FiguraLeer
 
 router = APIRouter(prefix="/api/figuras", tags=["figuras"])
@@ -96,12 +97,33 @@ async def actualizar_figura(
 
 @router.delete("/{figura_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def eliminar_figura(figura_id: int, db: AsyncSession = Depends(get_db)) -> None:
-    """Borra una figura del catálogo.
+    """Borra una figura del catálogo, si ninguna partida la está usando.
 
-    Es un borrado real. Cuando exista `partida_figura` (tarea #2) habrá que
-    impedir borrar una figura que ya se haya jugado, o pasar a borrado lógico,
-    para no romper el historial de ganadores.
+    Borrar una figura ya seleccionada en una partida dejaría huérfano el
+    historial de ganadores, así que se responde 409 en lugar de borrarla. La
+    llave foránea de `partida_figura` es RESTRICT como última defensa, pero se
+    comprueba aquí para poder dar un mensaje entendible.
     """
     figura = await _obtener_o_404(db, figura_id)
+
+    partidas_que_la_usan = (
+        await db.execute(
+            select(func.count())
+            .select_from(PartidaFigura)
+            .where(PartidaFigura.figura_id == figura_id)
+        )
+    ).scalar_one()
+
+    if partidas_que_la_usan:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                f"No se puede eliminar «{figura.nombre}»: está seleccionada en "
+                f"{partidas_que_la_usan} "
+                f"{'partida' if partidas_que_la_usan == 1 else 'partidas'}. "
+                "Quítala de la partida primero."
+            ),
+        )
+
     await db.delete(figura)
     await db.commit()
