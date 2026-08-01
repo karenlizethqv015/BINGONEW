@@ -96,10 +96,25 @@ python -m venv .venv
 ```powershell
 npm install         # instalación inicial
 npm run dev         # http://localhost:5173 (proxy de /api y /ws al backend)
+npm run dev:lan     # igual, pero accesible desde otros equipos de la red
 npm run build       # compila TypeScript y genera dist/
 npm run lint        # oxlint
 npm run preview     # sirve el build de producción
 ```
+
+### Demo desde el celular (misma red WiFi)
+
+Para enseñarle el MVP a alguien con su propio teléfono —el cartón marcándose solo mientras se cantan balotas desde el PC—:
+
+1. `npm run dev:lan` en vez de `npm run dev`.
+2. Sacar la IP del equipo: `ipconfig` (la "Dirección IPv4" del adaptador WiFi).
+3. Abrir el puerto una sola vez, en PowerShell **como administrador**:
+   ```powershell
+   New-NetFirewallRule -DisplayName "Bingo dev" -Direction Inbound -LocalPort 5173 -Protocol TCP -Action Allow
+   ```
+4. El invitado entra a `http://<ip-del-equipo>:5173/jugador`.
+
+**El backend se queda en `127.0.0.1` y no hay que abrir el puerto 8000.** El celular solo habla con Vite, que reenvía al backend desde el mismo equipo. Esto funciona sin tocar código gracias a la regla de no escribir nunca host ni puerto: el WebSocket se arma con `window.location.host`, así que se conecta solo a la IP correcta. Es además un ensayo de la instalación final en la sala.
 
 **Para trabajar hay que tener los dos corriendo a la vez** (uvicorn en 8000 y Vite en 5173): el frontend llama a `/api` y `/ws` con rutas relativas y el proxy de Vite las reenvía. Si una vista muestra "sin conexión", casi siempre es que falta levantar uvicorn.
 

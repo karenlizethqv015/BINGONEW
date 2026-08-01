@@ -46,6 +46,14 @@ npm run dev
 Abrir <http://localhost:5173>. La documentación de la API queda en
 <http://127.0.0.1:8000/docs>.
 
+### Verlo desde el celular
+
+Para probar el cartón del jugador en un teléfono de la misma red WiFi, usar
+`npm run dev:lan` en vez de `npm run dev`, abrir el puerto 5173 en el Firewall
+de Windows y entrar desde el celular a `http://<ip-del-equipo>:5173/jugador`.
+Los pasos exactos están en [CLAUDE.md](CLAUDE.md), sección «Demo desde el
+celular».
+
 El frontend llama al backend con rutas relativas (`/api`, `/ws`) y el proxy de
 Vite las reenvía, así que **los dos servicios deben estar corriendo**.
 

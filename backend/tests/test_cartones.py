@@ -158,6 +158,68 @@ async def test_borrar_la_partida_borra_sus_cartones(cliente: AsyncClient) -> Non
     assert (await cliente.get(f"/api/partidas/{partida}/cartones")).status_code == 404
 
 
+# --- Buscar un cartón por su código -----------------------------------------
+
+
+async def test_obtener_carton_por_codigo(cliente: AsyncClient) -> None:
+    """Es como el jugador llega a su cartón: escribiendo el código que tiene."""
+    partida = await _crear_partida(cliente)
+    creados = (
+        await cliente.post(f"/api/partidas/{partida}/cartones", json={"cantidad": 5})
+    ).json()
+    tercero = creados[2]
+
+    respuesta = await cliente.get(f"/api/partidas/{partida}/cartones/A/3")
+
+    assert respuesta.status_code == 200
+
+    carton = respuesta.json()
+    assert carton["numero_carton"] == 3
+    assert carton["serie"] == "A"
+    assert carton["numeros"] == tercero["numeros"]
+
+
+async def test_el_codigo_ignora_mayusculas(cliente: AsyncClient) -> None:
+    """Escrito desde un celular, «a-7» debe funcionar igual que «A-7»."""
+    partida = await _crear_partida(cliente)
+    await cliente.post(
+        f"/api/partidas/{partida}/cartones", json={"cantidad": 3, "serie": "B"}
+    )
+
+    respuesta = await cliente.get(f"/api/partidas/{partida}/cartones/b/2")
+
+    assert respuesta.status_code == 200
+    assert respuesta.json()["numero_carton"] == 2
+
+
+async def test_carton_inexistente_da_404(cliente: AsyncClient) -> None:
+    partida = await _crear_partida(cliente)
+    await cliente.post(f"/api/partidas/{partida}/cartones", json={"cantidad": 3})
+
+    assert (await cliente.get(f"/api/partidas/{partida}/cartones/A/99")).status_code == 404
+    assert (await cliente.get(f"/api/partidas/{partida}/cartones/Z/1")).status_code == 404
+
+
+async def test_el_codigo_no_cruza_partidas(cliente: AsyncClient) -> None:
+    """El A-1 de una partida no es el A-1 de otra."""
+    primera = await _crear_partida(cliente)
+    segunda = await _crear_partida(cliente)
+    await cliente.post(f"/api/partidas/{primera}/cartones", json={"cantidad": 2})
+
+    assert (await cliente.get(f"/api/partidas/{segunda}/cartones/A/1")).status_code == 404
+
+
+async def test_resumen_no_choca_con_el_codigo(cliente: AsyncClient) -> None:
+    """`/resumen` es una ruta, no una serie llamada «resumen»."""
+    partida = await _crear_partida(cliente)
+    await cliente.post(f"/api/partidas/{partida}/cartones", json={"cantidad": 2})
+
+    respuesta = await cliente.get(f"/api/partidas/{partida}/cartones/resumen")
+
+    assert respuesta.status_code == 200
+    assert respuesta.json()["total"] == 2
+
+
 # --- Validaciones -----------------------------------------------------------
 
 
