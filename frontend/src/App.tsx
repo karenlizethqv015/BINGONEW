@@ -2,6 +2,7 @@ import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 
 import { Layout } from '@/components/Layout'
 import { Admin } from '@/pages/Admin'
+import { Figuras } from '@/pages/Figuras'
 import { Inicio } from '@/pages/Inicio'
 import { Jugador } from '@/pages/Jugador'
 import { Transmision } from '@/pages/Transmision'
@@ -21,6 +22,7 @@ export default function App() {
         <Route element={<Layout />}>
           <Route index element={<Inicio />} />
           <Route path="/admin" element={<Admin />} />
+          <Route path="/admin/figuras" element={<Figuras />} />
           <Route path="/transmision" element={<Transmision />} />
           <Route path="/jugador" element={<Jugador />} />
           <Route path="/vendedor" element={<Vendedor />} />

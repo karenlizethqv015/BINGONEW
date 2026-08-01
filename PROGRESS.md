@@ -2,7 +2,7 @@
 
 > Claude Code debe actualizar este archivo cada vez que complete una tarea: marcar el checkbox, agregar fecha y una línea breve de qué se hizo o qué decisión se tomó. No se debe reordenar la prioridad de fases sin que la usuaria lo pida.
 
-Última actualización: 2026-07-30 (Fase 0 completa salvo el despliegue, pospuesto a propósito).
+Última actualización: 2026-07-30 (Fase 1, tarea #1 — módulo de creación de figuras — completa).
 
 ---
 
@@ -23,7 +23,7 @@ Los comandos están en la sección `## Comandos` de `CLAUDE.md`. En corto: uvico
 
 Orden sugerido de implementación (cada una debe funcionar de punta a punta antes de pasar a la siguiente):
 
-- [ ] **1. Módulo de creación de figuras** — cuadrícula editable tipo BINGO, guardar/nombrar patrón en catálogo. (`docs/09-modulos-desarrollo.md` #5, `docs/08-modelo-datos.md` tabla `figura`)
+- [x] **1. Módulo de creación de figuras** — cuadrícula editable tipo BINGO, guardar/nombrar patrón en catálogo. (`docs/09-modulos-desarrollo.md` #5, `docs/08-modelo-datos.md` tabla `figura`) — 2026-07-30. CRUD completo en `/api/figuras` (tabla `figura`, patrón como matriz 5x5 en JSON) y pantalla `/admin/figuras` con cuadrícula editable que se pinta arrastrando, 6 plantillas de figuras comunes, catálogo con vista previa en miniatura, y edición/borrado con confirmación. 17 pruebas nuevas de backend más 9 comprobaciones de punta a punta contra el proxy. **La cuadrícula es 5x5, no 5x25 — ver la nota de la bitácora.**
 - [ ] **2. Módulo de selección de formas por partida** — elegir figuras del catálogo para la partida activa, definir tipo de premio y valor. (`docs/09-modulos-desarrollo.md` #6, tabla `partida_figura`)
 - [ ] **3. Generación de cartones virtuales** — algoritmo de cartones únicos 5x5, sin duplicados dentro de la partida. (`docs/09-modulos-desarrollo.md` #7, tabla `carton`)
 - [ ] **4. Balotera virtual** — sorteo aleatorio criptográficamente seguro (`secrets`), sin repetición, rangos B-I-N-G-O, emisión por WebSocket, registro en `balota_cantada`. (`docs/09-modulos-desarrollo.md` #9 y detalle de balotera virtual)
@@ -70,5 +70,13 @@ Orden sugerido de implementación (cada una debe funcionar de punta a punta ante
 - 2026-07-30 — **Componentes: shadcn/ui** (elegido por la usuaria), como sugería `SKILLS-RECOMENDADAS.md`. El CLI oficial no se ejecutó porque el proyecto usa Tailwind 4 + TypeScript 6 + Vite 8 y la detección automática es frágil; se escribieron a mano `button` y `card` siguiendo exactamente la convención de shadcn, y se dejó `components.json` configurado para que `npx shadcn@latest add <componente>` funcione de aquí en adelante.
 
 - 2026-07-30 — **El despliegue de la demo se pospone a la tarea #9 de la Fase 1** (decisión de la usuaria). No se crearon archivos de despliegue en la Fase 0. Nota para cuando se retome: el frontend ya llama al backend con rutas relativas (`/api`, `/ws`), así que servir ambos desde el mismo origen no requiere cambios de código.
+
+- 2026-07-30 — **Corrección al documento de visión: las figuras se diseñan sobre una cuadrícula de 5x5, no de "5x25".** `docs/03-alcance-funcional-mvp.md` y `docs/08-modelo-datos.md` dicen "matriz 5x25 tipo BINGO", pero ambos textos salen de la misma frase del documento original, así que es un solo dato y no dos confirmaciones. 5x25 son 125 celdas, que no corresponde ni al cartón (5x5 = 25) ni al tablero de 75 balotas (5x15); además `carton.numeros` sí está definido como matriz 5x5, y la validación de ganadores de la tarea #8 tiene que comparar la figura celda a celda contra el cartón. Confirmado con la usuaria: **5x5**. Los archivos de `docs/` se dejaron sin tocar por ser transcripción del documento original; esta bitácora es la fuente correcta.
+
+- 2026-07-30 — **La casilla libre (centro, fila 2 columna 2) puede incluirse o no en una figura.** No se fuerza a estar marcada: "cuatro esquinas", por ejemplo, no la incluye. Cuando se implemente la validación de ganadores (tarea #8), si una figura la incluye debe darse por cumplida automáticamente, sin que salga ninguna balota. Las constantes están en `backend/app/dominio/bingo.py` y `frontend/src/lib/bingo.ts` — si cambia una, hay que cambiar las dos.
+
+- 2026-07-30 — **Borrado de figuras: es borrado real, no lógico.** Sirve mientras el catálogo no esté referenciado por nada. En la tarea #2, al crear `partida_figura`, hay que impedir borrar una figura ya jugada o pasar a borrado lógico, o se rompe el historial de ganadores. Queda anotado en el docstring del endpoint.
+
+- 2026-07-30 — **Las pruebas corren contra una base de datos propia en memoria**, no contra `bingo.db`, sobreescribiendo la dependencia `get_db`. El esquema se crea y se destruye en cada prueba, así que el orden en que corran no cambia el resultado.
 
 - 2026-07-30 — **Aviso de seguridad de `react-router` que se decidió NO atender:** `npm audit` reporta `GHSA-qwww-vcr4-c8h2` (severidad alta) en `react-router` 7.18.2. Aplica solo al **modo RSC** con server actions; esta aplicación es una SPA puramente de cliente, así que no la afecta. Además, la versión instalada es la última publicada y la corrección que sugiere npm (7.11.0) es *anterior*. Revisar cuando salga una versión parcheada.
