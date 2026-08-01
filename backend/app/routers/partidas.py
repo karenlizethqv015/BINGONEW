@@ -5,11 +5,12 @@ usuario creador. Ver `app/models/partida.py`.
 """
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db import get_db
 from app.models.figura import Figura
+from app.models.ganador import Ganador
 from app.models.partida import EstadoPartida, Partida
 from app.models.partida_figura import PartidaFigura
 from app.schemas.partida import (
@@ -124,6 +125,28 @@ async def definir_formas(
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="No se pueden cambiar las formas de ganar de una partida finalizada.",
+        )
+
+    # Reemplazar la selección borra las filas de `partida_figura`, y `ganador`
+    # apunta a ellas: seguir adelante borraría los ganadores en cascada y en
+    # silencio. Es mejor negarse con un mensaje claro que destruir el registro de
+    # quién ganó. Para rehacer la selección hay que reiniciar el sorteo.
+    ya_hay_ganadores = (
+        await db.execute(
+            select(func.count())
+            .select_from(Ganador)
+            .where(Ganador.partida_id == partida_id)
+        )
+    ).scalar_one()
+
+    if ya_hay_ganadores:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                "No se pueden cambiar las formas de ganar: la partida ya tiene "
+                "ganadores registrados. Reinicia el sorteo si necesitas rehacer "
+                "la selección."
+            ),
         )
 
     # Se comprueba que todas las figuras existan ANTES de tocar nada, para no

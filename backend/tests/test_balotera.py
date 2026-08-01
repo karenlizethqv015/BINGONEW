@@ -221,6 +221,20 @@ def _con_base_de_pruebas(sesion_factory: async_sessionmaker) -> TestClient:
     return TestClient(app)
 
 
+def _esperar(ws, tipo: str, intentos: int = 5) -> dict:
+    """Recibe eventos hasta encontrar uno del tipo pedido.
+
+    Cada balota emite dos eventos —la balota y el cuadro de ganadores— y al
+    conectarse llegan otros dos. Esperar por tipo, en vez de contar mensajes,
+    evita que agregar un evento más rompa cada prueba que escucha el canal.
+    """
+    for _ in range(intentos):
+        mensaje = ws.receive_json()
+        if mensaje["tipo"] == tipo:
+            return mensaje
+    raise AssertionError(f"No llegó ningún evento «{tipo}» en {intentos} mensajes.")
+
+
 def test_al_conectarse_llega_la_sincronizacion(
     sesion_factory: async_sessionmaker,
 ) -> None:
@@ -272,10 +286,11 @@ def test_cantar_emite_el_evento_a_los_conectados(
         cliente_ws.post(f"/api/partidas/{partida['id']}/iniciar")
 
         with cliente_ws.websocket_connect(f"/ws/partida/{partida['id']}") as ws:
-            ws.receive_json()  # la sincronización inicial
+            _esperar(ws, "sincronizacion")
+            _esperar(ws, "ganadores")
 
             respuesta = cliente_ws.post(f"/api/partidas/{partida['id']}/balotas")
-            evento = ws.receive_json()
+            evento = _esperar(ws, "balota")
 
         assert evento["tipo"] == "balota"
         assert evento["balota"]["numero"] == respuesta.json()["numero"]
@@ -295,10 +310,11 @@ def test_cambiar_de_estado_emite_evento(
         partida = cliente_ws.post("/api/partidas", json={}).json()
 
         with cliente_ws.websocket_connect(f"/ws/partida/{partida['id']}") as ws:
-            ws.receive_json()
+            _esperar(ws, "sincronizacion")
+            _esperar(ws, "ganadores")
 
             cliente_ws.post(f"/api/partidas/{partida['id']}/iniciar")
-            evento = ws.receive_json()
+            evento = _esperar(ws, "estado")
 
         assert evento["tipo"] == "estado"
         assert evento["estado"] == "en_curso"
