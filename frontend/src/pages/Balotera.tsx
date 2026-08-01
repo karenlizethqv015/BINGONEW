@@ -133,13 +133,27 @@ export function Balotera() {
         >
           ← Partidas
         </Link>
-        <h1 className="text-3xl font-bold tracking-tight">
-          Juego{' '}
-          <span className="tabular text-primary">
-            {vivo.numeroConsecutivo ?? '—'}
-          </span>{' '}
-          · Balotera
-        </h1>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h1 className="text-3xl font-bold tracking-tight">
+            Juego{' '}
+            <span className="tabular text-primary">
+              {vivo.numeroConsecutivo ?? '—'}
+            </span>{' '}
+            · Balotera
+          </h1>
+
+          {/* En otra pestaña: la de la sala se proyecta y esta se queda
+              controlando el sorteo. */}
+          <Button asChild variant="outline" size="sm">
+            <a
+              href={`/transmision?partida=${partidaId}`}
+              target="_blank"
+              rel="noreferrer"
+            >
+              Abrir tablero de sala ↗
+            </a>
+          </Button>
+        </div>
       </header>
 
       {/* Lo primero que hay que ver: alguien ganó. */}
