@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 
 import { Bola } from '@/components/balotera/Bola'
+import { Cronometro } from '@/components/balotera/Cronometro'
 import { AvisoBingo } from '@/components/ganadores/AvisoBingo'
 import { CercaDeGanar } from '@/components/ganadores/CercaDeGanar'
 import { Button } from '@/components/ui/button'
@@ -321,6 +322,10 @@ export function Balotera() {
                     <span className="font-semibold tabular">{intervalo}s</span>
                   </span>
                 </label>
+
+                {/* Ajustable con el sorteo en marcha: es lo que el
+                    administrador toca según cómo vaya la sala. */}
+                <Cronometro partidaId={partidaId} segundos={intervalo} />
 
                 {automatico && (
                   <p className="text-xs text-muted-foreground">

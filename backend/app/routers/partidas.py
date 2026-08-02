@@ -9,10 +9,13 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db import get_db
+from app.models.balota_cantada import BalotaCantada
 from app.models.figura import Figura
 from app.models.ganador import Ganador
 from app.models.partida import EstadoPartida, Partida
 from app.models.partida_figura import PartidaFigura
+from app.realtime.eventos import canal_de_partida, evento_sincronizacion
+from app.realtime.manager import gestor
 from app.schemas.partida import (
     PartidaActualizar,
     PartidaCrear,
@@ -21,6 +24,16 @@ from app.schemas.partida import (
 )
 
 router = APIRouter(prefix="/api/partidas", tags=["partidas"])
+
+
+async def _balotas_de(db: AsyncSession, partida_id: int) -> list[BalotaCantada]:
+    """Balotas cantadas, en orden. La sincronización las lleva todas."""
+    resultado = await db.execute(
+        select(BalotaCantada)
+        .where(BalotaCantada.partida_id == partida_id)
+        .order_by(BalotaCantada.orden)
+    )
+    return list(resultado.scalars().all())
 
 
 async def _obtener_o_404(db: AsyncSession, partida_id: int) -> Partida:
@@ -81,7 +94,14 @@ async def crear_partida(
 async def actualizar_partida(
     partida_id: int, datos: PartidaActualizar, db: AsyncSession = Depends(get_db)
 ) -> Partida:
-    """Edita el precio del cartón y el tiempo entre balotas."""
+    """Edita el precio del cartón y el tiempo entre balotas.
+
+    El tiempo entre balotas se puede cambiar **con el sorteo en curso**: es el
+    cronómetro que el administrador ajusta según cómo vaya la sala. Por eso al
+    guardarlo se emite la sincronización: el reloj del sorteo automático vive en
+    el navegador (ver PROGRESS.md), así que si no se avisa, la balotera seguiría
+    cantando al ritmo viejo hasta que alguien recargue la página.
+    """
     partida = await _obtener_o_404(db, partida_id)
 
     if datos.precio_carton is not None:
@@ -91,6 +111,12 @@ async def actualizar_partida(
 
     await db.commit()
     await db.refresh(partida)
+
+    await gestor.emitir(
+        canal_de_partida(partida.id),
+        evento_sincronizacion(partida, await _balotas_de(db, partida_id)),
+    )
+
     return partida
 
 

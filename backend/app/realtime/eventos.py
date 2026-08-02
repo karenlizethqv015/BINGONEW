@@ -80,6 +80,10 @@ def evento_sincronizacion(
         "numero_consecutivo": partida.numero_consecutivo,
         "estado": partida.estado.value,
         "duracion_segundos_entre_balota": partida.duracion_segundos_entre_balota,
+        # Para el reloj de la jugada del panel de administración. Va aquí y no
+        # en una petición aparte porque este evento es la foto completa de la
+        # partida, y porque el panel debe poder ponerlo en hora al reconectarse.
+        "iniciada_en": partida.iniciada_en.isoformat() if partida.iniciada_en else None,
         "balotas": [_balota_a_dict(balota) for balota in balotas],
         "total_cantadas": len(balotas),
         "restantes": TOTAL_BALOTAS - len(balotas),

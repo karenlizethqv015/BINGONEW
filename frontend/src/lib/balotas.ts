@@ -51,6 +51,8 @@ export interface EventoSincronizacion {
   numero_consecutivo: number
   estado: EstadoPartida
   duracion_segundos_entre_balota: number
+  /** Cuándo arrancó el sorteo (ISO), o null si todavía no ha empezado. */
+  iniciada_en: string | null
   balotas: Balota[]
   total_cantadas: number
   restantes: number
