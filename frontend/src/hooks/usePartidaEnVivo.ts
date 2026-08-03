@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 
 import { urlWebSocket } from '@/lib/api'
 import type { Balota, EventoPartida } from '@/lib/balotas'
+import { CUADRO_VACIO, type CuadroGanadores } from '@/lib/ganadores'
 import type { EstadoPartida } from '@/lib/partidas'
 
 export type EstadoConexion = 'conectando' | 'conectado' | 'desconectado'
@@ -19,6 +20,11 @@ export interface PartidaEnVivo {
   cantadas: Set<number>
   totalCantadas: number
   restantes: number
+  /**
+   * Quién ha ganado y quién está a una o dos balotas de ganar. Lo calcula el
+   * backend y llega ya resuelto: aquí no se decide nada de eso.
+   */
+  ganadores: CuadroGanadores
 }
 
 const ESTADO_INICIAL: PartidaEnVivo = {
@@ -31,6 +37,7 @@ const ESTADO_INICIAL: PartidaEnVivo = {
   cantadas: new Set(),
   totalCantadas: 0,
   restantes: 75,
+  ganadores: CUADRO_VACIO,
 }
 
 /** Espera entre reintentos de reconexión, en milisegundos. */
@@ -126,6 +133,10 @@ function aplicar(previo: PartidaEnVivo, evento: EventoPartida): PartidaEnVivo {
         cantadas: new Set(evento.balotas.map((b) => b.numero)),
         totalCantadas: evento.total_cantadas,
         restantes: evento.restantes,
+        // El cuadro de ganadores no viaja en este evento: llega en el suyo,
+        // justo detrás. Se conserva el anterior para que al reconectarse no
+        // parpadee un «nadie ha ganado» que es mentira.
+        ganadores: previo.ganadores,
       }
 
     case 'balota': {
@@ -154,9 +165,18 @@ function aplicar(previo: PartidaEnVivo, evento: EventoPartida): PartidaEnVivo {
         restantes: evento.restantes,
         // Reiniciar el sorteo deja la partida pendiente y sin balotas.
         ...(evento.total_cantadas === 0
-          ? { balotas: [], ultima: null, cantadas: new Set<number>() }
+          ? {
+              balotas: [],
+              ultima: null,
+              cantadas: new Set<number>(),
+              ganadores: CUADRO_VACIO,
+            }
           : {}),
       }
+
+    case 'ganadores':
+      // Foto completa, igual que la sincronización: reemplaza, no acumula.
+      return { ...previo, ganadores: evento }
 
     default:
       return previo

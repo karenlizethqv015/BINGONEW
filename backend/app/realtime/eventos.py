@@ -7,12 +7,13 @@ administrador no se enteren de cuál es la fuente. Si los eventos se armaran a
 mano en cada endpoint, esa promesa se rompería sin que nadie lo note.
 
 Todas las vistas en tiempo real se conectan al mismo canal por partida y
-reaccionan a estos tres tipos.
+reaccionan a estos cuatro tipos.
 """
 
 from typing import Any
 
 from app.dominio.bingo import TOTAL_BALOTAS, letra_de_numero
+from app.dominio.ganadores import CuadroDeGanadores
 from app.models.balota_cantada import BalotaCantada
 from app.models.partida import Partida
 
@@ -82,4 +83,55 @@ def evento_sincronizacion(
         "balotas": [_balota_a_dict(balota) for balota in balotas],
         "total_cantadas": len(balotas),
         "restantes": TOTAL_BALOTAS - len(balotas),
+    }
+
+
+def evento_ganadores(
+    partida: Partida, cuadro: CuadroDeGanadores, orden_balota: int
+) -> dict[str, Any]:
+    """Quién ha ganado y quién está a una o a dos balotas de ganar.
+
+    Lleva la **foto completa**, no lo que cambió: igual que `sincronizacion`, una
+    pantalla que se abre o se reconecta a mitad de partida tiene que poder
+    reconstruir el cuadro entero sin pedir nada más. Se emite después de cada
+    balota y al conectarse un cliente.
+
+    `a_una` y `a_dos` son los totales **reales**, aunque la lista `cerca` venga
+    recortada: el recorte existe para que la pantalla no reciba miles de filas
+    ilegibles, pero no debe mentir en el número.
+    """
+    return {
+        "tipo": "ganadores",
+        "partida_id": partida.id,
+        "orden_balota": orden_balota,
+        "bingos": [
+            {
+                "partida_figura_id": ganada.forma.partida_figura_id,
+                "figura_id": ganada.forma.figura_id,
+                "figura": ganada.forma.nombre,
+                "valor_premio": ganada.forma.valor_premio,
+                "orden_balota": ganada.orden_balota,
+                "numero_balota": ganada.numero_balota,
+                "nuevo": ganada.nuevo,
+                "cartones": [
+                    {"carton_id": carton.carton_id, "codigo": carton.codigo}
+                    for carton in ganada.cartones
+                ],
+            }
+            for ganada in cuadro.ganadas
+        ],
+        "total_cartones_ganadores": cuadro.total_cartones_ganadores,
+        "a_una": cuadro.a_una,
+        "a_dos": cuadro.a_dos,
+        "cerca": [
+            {
+                "carton_id": item.carton_id,
+                "codigo": item.codigo,
+                "partida_figura_id": item.partida_figura_id,
+                "figura": item.figura,
+                "faltan": item.faltan,
+                "numeros": item.numeros,
+            }
+            for item in cuadro.cerca
+        ],
     }

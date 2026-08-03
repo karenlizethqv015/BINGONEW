@@ -156,6 +156,37 @@ def firma_carton(carton: Carton) -> str:
     return hashlib.sha256(plano.encode()).hexdigest()
 
 
+def numeros_requeridos(carton: Carton, patron: Patron) -> frozenset[int]:
+    """Números que deben salir para que este cartón complete este patrón.
+
+    Son los valores del cartón en las celdas que el patrón marca. **La casilla
+    libre no aporta ninguno**: ya cuenta como marcada sin que salga balota, así
+    que una figura que la incluya exige una balota menos que celdas tiene.
+
+    No depende del sorteo, solo del cartón y de la figura, así que se puede
+    calcular una vez y reutilizar durante toda la partida.
+
+    Ojo con el conjunto vacío: significa que la figura no exige ninguna balota
+    (por ejemplo, un patrón formado solo por la casilla libre). Quien use esto
+    debe decidir qué hacer con ese caso; ver `app/dominio/ganadores.py`.
+    """
+    return frozenset(
+        valor
+        for fila_indice, fila in enumerate(patron)
+        for columna, marcada in enumerate(fila)
+        if marcada and (valor := carton[fila_indice][columna]) is not None
+    )
+
+
+def faltan_para(requeridos: frozenset[int], cantadas: set[int]) -> int:
+    """Cuántas balotas faltan para completar la figura.
+
+    Es la cuenta que responde las tres preguntas del aviso al administrador:
+    0 es bingo, 1 es «a una balota», 2 es «a dos balotas».
+    """
+    return len(requeridos - cantadas)
+
+
 def validar_carton(carton: Carton) -> None:
     """Comprueba que un cartón cumpla las reglas. Lanza ValueError si no.
 

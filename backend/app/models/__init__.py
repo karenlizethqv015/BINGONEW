@@ -9,6 +9,7 @@ from app.db import Base
 from app.models.balota_cantada import BalotaCantada
 from app.models.carton import Carton
 from app.models.figura import Figura, TipoFigura
+from app.models.ganador import Ganador
 from app.models.partida import EstadoPartida, Partida
 from app.models.partida_figura import PartidaFigura
 
@@ -18,6 +19,7 @@ __all__ = [
     "Carton",
     "EstadoPartida",
     "Figura",
+    "Ganador",
     "Partida",
     "PartidaFigura",
     "TipoFigura",

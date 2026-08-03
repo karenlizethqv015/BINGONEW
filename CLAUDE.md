@@ -16,6 +16,7 @@ Aplicación web para administrar jornadas de bingo en vivo (venta de cartones vi
 - `docs/08-modelo-datos.md`
 - `docs/09-modulos-desarrollo.md`
 - `docs/10-proximos-pasos.md`
+- `docs/11-avisos-y-validacion-de-ganadores.md`
 
 **Regla de oro de contexto:** no cargues los 10 archivos de `docs/` completos si la tarea de la sesión solo necesita 1 o 2. Lee `PROGRESS.md` primero para saber en qué fase/tarea está el proyecto, y de ahí decide qué archivo(s) de `docs/` son relevantes para esa tarea puntual.
 
@@ -136,7 +137,11 @@ Estas reglas son las más fáciles de equivocar y las más caras de corregir des
 - Usar `secrets` (generador criptográficamente seguro), **nunca** `random` — deja abierto el camino a una futura certificación GNA/Coljuegos.
 - Toda balota sorteada se registra en `balota_cantada` con su orden y timestamp, venga de balotera virtual o física.
 - El evento WebSocket de balota debe ser **idéntico** para fuente virtual y física: cuando se integre la balotera real, solo cambia la fuente, no el resto del sistema.
-- El sorteo termina al agotarse las 75 balotas, o antes si ya se cumplió la condición de ganador de la figura en juego.
+- El sorteo termina al agotarse las 75 balotas, o cuando el administrador lo finaliza a mano.
+- **Un bingo NO detiene el sorteo:** se avisa y la partida sigue. Todas las formas juegan a la vez, así que un bingo de «línea» no debe frenar una partida en la que «cartón lleno» sigue en juego.
+- **Una forma ganada se cierra:** solo ganan los cartones que la completan en la MISMA balota, y comparten el premio. Quien la complete después llegó tarde. Sin esta regla, con las 75 balotas fuera todos los cartones habrían ganado todo.
+- **La casilla libre no exige ninguna balota:** una figura que la incluya exige una balota menos que celdas tiene. Una figura formada solo por la casilla libre se ignora.
+- **Quién ganó lo decide siempre el backend**, nunca el navegador: hay dinero detrás. El marcado del cartón sí se resuelve en el cliente, que es otra cosa. Detalle completo en `docs/11-avisos-y-validacion-de-ganadores.md`.
 
 ## Convenciones de trabajo para Claude Code
 

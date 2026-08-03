@@ -17,9 +17,14 @@ from app.config import settings
 from app.db import engine, get_sesion_factory
 from app.models.balota_cantada import BalotaCantada
 from app.models.partida import Partida
-from app.realtime.eventos import canal_de_partida, evento_sincronizacion
+from app.realtime.eventos import (
+    canal_de_partida,
+    evento_ganadores,
+    evento_sincronizacion,
+)
 from app.realtime.manager import gestor
 from app.routers import balotas, cartones, figuras, health, partidas
+from app.servicios.ganadores import evaluar_partida
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -71,10 +76,11 @@ async def websocket_partida(
     el cartón del jugador y el panel del administrador se conectan todos aquí y
     reaccionan al mismo evento de balota.
 
-    Nada más conectarse se envía la sincronización con el estado y todas las
-    balotas ya cantadas, para que una pantalla que llega tarde o que se
-    reconecta reconstruya el tablero completo. Después el canal es de una sola
-    dirección: el servidor emite y el cliente solo escucha.
+    Nada más conectarse se envían dos fotos completas: la sincronización con el
+    estado y todas las balotas ya cantadas, y el cuadro de ganadores. Con las dos,
+    una pantalla que llega tarde o que se reconecta reconstruye todo sin pedir
+    nada más. Después el canal es de una sola dirección: el servidor emite y el
+    cliente solo escucha.
 
     La sesión de base de datos se abre y se cierra aquí mismo: la conexión puede
     durar horas y no debe retener una conexión a la base todo ese tiempo.
@@ -100,11 +106,17 @@ async def websocket_partida(
         )
         sincronizacion = evento_sincronizacion(partida, balotas_cantadas)
 
+        # Solo consulta: los ganadores se registran al cantar la balota, no
+        # porque alguien abra una pantalla.
+        cuadro, orden = await evaluar_partida(sesion, partida_id, registrar=False)
+        ganadores = evento_ganadores(partida, cuadro, orden)
+
     canal = canal_de_partida(partida_id)
     await gestor.conectar(canal, websocket)
 
     try:
         await websocket.send_json(sincronizacion)
+        await websocket.send_json(ganadores)
         while True:
             # No se espera nada del cliente; recibir es la forma de enterarse de
             # que se desconectó.

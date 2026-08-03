@@ -228,6 +228,28 @@ export function Jugador() {
   const yaElegidos = new Set(misCartones.map((c) => c.id))
   const paraElegir = disponibles.filter((c) => !yaElegidos.has(c.id))
 
+  /**
+   * Con qué formas ha ganado cada cartón MÍO, indexado por id de cartón.
+   *
+   * El cuadro que llega por el WebSocket trae los ganadores de toda la partida;
+   * aquí solo interesan los propios. Quién ganó lo decide el backend: esta
+   * pantalla no lo calcula ni podría, porque no conoce las formas en juego.
+   *
+   * A propósito NO se muestra nada de «a una / a dos balotas»: eso es
+   * información de control del administrador, y al jugador le quitaría la
+   * emoción de ver salir su número.
+   */
+  const misBingos = new Map<number, string[]>()
+  for (const bingo of vivo.ganadores.bingos) {
+    for (const ganador of bingo.cartones) {
+      if (!yaElegidos.has(ganador.carton_id)) continue
+      misBingos.set(ganador.carton_id, [
+        ...(misBingos.get(ganador.carton_id) ?? []),
+        bingo.figura,
+      ])
+    }
+  }
+
   if (cargando) {
     return <p className="text-sm text-muted-foreground">Cargando…</p>
   }
@@ -323,15 +345,36 @@ export function Jugador() {
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {misCartones.map((carton) => {
             const marcadas = contarMarcadas(carton.numeros, vivo.cantadas)
+            const gano = misBingos.get(carton.id)
 
             return (
               <div key={carton.id} className="space-y-1.5">
-                <CartonBingo
-                  numeros={carton.numeros}
-                  etiqueta={codigoDeCarton(carton)}
-                  marcados={vivo.cantadas}
-                  ultimo={vivo.ultima?.numero ?? null}
-                />
+                <div className="relative">
+                  <CartonBingo
+                    numeros={carton.numeros}
+                    etiqueta={codigoDeCarton(carton)}
+                    marcados={vivo.cantadas}
+                    ultimo={vivo.ultima?.numero ?? null}
+                  />
+
+                  {gano && (
+                    <div
+                      role="alert"
+                      className="animate-bingo absolute inset-0 grid place-items-center rounded-lg bg-background/85 p-3 text-center ring-2 ring-success"
+                    >
+                      <div className="space-y-1">
+                        <p className="text-3xl font-black tracking-wide text-success">
+                          ¡BINGO!
+                        </p>
+                        <p className="text-sm font-semibold">{gano.join(' · ')}</p>
+                        <p className="text-xs text-muted-foreground">
+                          Avisa para que verifiquen tu cartón.
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
                 <div className="flex items-center justify-between px-1 text-xs">
                   <span className="tabular text-muted-foreground">
                     {marcadas} de 25 marcadas

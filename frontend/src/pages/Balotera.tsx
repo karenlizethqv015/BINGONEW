@@ -2,6 +2,8 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 
 import { Bola } from '@/components/balotera/Bola'
+import { AvisoBingo } from '@/components/ganadores/AvisoBingo'
+import { CercaDeGanar } from '@/components/ganadores/CercaDeGanar'
 import { Button } from '@/components/ui/button'
 import {
   Card,
@@ -40,6 +42,9 @@ export function Balotera() {
   const [error, setError] = useState<string | null>(null)
   const [ocupado, setOcupado] = useState(false)
 
+  // Hay un bingo recién cantado que el administrador todavía no ha atendido.
+  const [bingoSinAtender, setBingoSinAtender] = useState(false)
+
   // Evita que dos peticiones de balota se encimen si una tarda más que el
   // intervalo del sorteo automático.
   const cantandoRef = useRef(false)
@@ -76,6 +81,18 @@ export function Balotera() {
   useEffect(() => {
     if (finalizada) setAutomatico(false)
   }, [finalizada])
+
+  // Un bingo recién detectado pide atención; uno que ya estaba, no. Sin mirar
+  // `nuevo`, el aviso volvería a saltar en cada balota posterior.
+  const ganadores = vivo.ganadores
+  useEffect(() => {
+    if (ganadores.bingos.some((bingo) => bingo.nuevo)) {
+      setBingoSinAtender(true)
+    } else if (ganadores.bingos.length === 0) {
+      // Se reinició el sorteo: no queda nada que atender.
+      setBingoSinAtender(false)
+    }
+  }, [ganadores])
 
   const transicion = async (
     accion: 'iniciar' | 'pausar' | 'reanudar' | 'finalizar',
@@ -124,6 +141,14 @@ export function Balotera() {
           · Balotera
         </h1>
       </header>
+
+      {/* Lo primero que hay que ver: alguien ganó. */}
+      <AvisoBingo
+        bingos={ganadores.bingos}
+        totalCartones={ganadores.total_cartones_ganadores}
+        sinAtender={bingoSinAtender}
+        onCerrar={() => setBingoSinAtender(false)}
+      />
 
       {/* Conexión en tiempo real */}
       <div className="flex flex-wrap items-center gap-x-6 gap-y-2 rounded-lg border border-border bg-surface px-4 py-3 text-sm">
@@ -330,6 +355,12 @@ export function Balotera() {
               )}
             </CardContent>
           </Card>
+
+          <CercaDeGanar
+            cerca={ganadores.cerca}
+            aUna={ganadores.a_una}
+            aDos={ganadores.a_dos}
+          />
         </div>
 
         {/* Tablero de los 75 números */}

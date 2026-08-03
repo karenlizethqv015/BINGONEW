@@ -21,9 +21,12 @@ from app.realtime.eventos import (
     canal_de_partida,
     evento_balota,
     evento_estado,
+    evento_ganadores,
 )
 from app.realtime.manager import gestor
 from app.schemas.balota import BalotaLeer, EstadoSorteo
+from app.schemas.ganador import CuadroGanadoresLeer
+from app.servicios.ganadores import borrar_ganadores, evaluar_partida
 
 router = APIRouter(prefix="/api/partidas/{partida_id}", tags=["balotera"])
 
@@ -78,6 +81,16 @@ async def _emitir_estado(db: AsyncSession, partida: Partida) -> None:
     )
 
 
+async def _emitir_ganadores(
+    db: AsyncSession, partida: Partida, *, registrar: bool
+) -> dict:
+    """Evalúa la partida y emite el cuadro de ganadores. Devuelve lo emitido."""
+    cuadro, orden = await evaluar_partida(db, partida.id, registrar=registrar)
+    evento = evento_ganadores(partida, cuadro, orden)
+    await gestor.emitir(canal_de_partida(partida.id), evento)
+    return evento
+
+
 # --- Consulta ---------------------------------------------------------------
 
 
@@ -105,6 +118,24 @@ async def estado_del_sorteo(
         restantes=TOTAL_BALOTAS - len(balotas),
         ultima=BalotaLeer.model_validate(balotas[-1]) if balotas else None,
     )
+
+
+@router.get("/ganadores", response_model=CuadroGanadoresLeer)
+async def cuadro_de_ganadores(
+    partida_id: int, db: AsyncSession = Depends(get_db)
+) -> dict:
+    """Quién ha ganado y quién está a una o a dos balotas de ganar.
+
+    Es el mismo cuerpo que emite el evento `ganadores` del WebSocket, construido
+    con la misma función: HTTP y tiempo real no pueden discrepar. Sirve para la
+    carga inicial de una pantalla y para poder comprobarlo desde un script.
+
+    Solo consulta: no registra ganadores nuevos. Los ganadores se registran al
+    cantar la balota, que es el único momento en que pueden aparecer.
+    """
+    partida = await _obtener_partida_o_404(db, partida_id)
+    cuadro, orden = await evaluar_partida(db, partida_id, registrar=False)
+    return evento_ganadores(partida, cuadro, orden)
 
 
 # --- Sorteo -----------------------------------------------------------------
@@ -153,6 +184,17 @@ async def cantar_balota(
 
         canal = canal_de_partida(partida_id)
         await gestor.emitir(canal, evento_balota(partida, balota, total))
+
+        # Con la balota ya guardada, mirar quién ganó y quién quedó a una o dos.
+        # Va dentro del cerrojo: dos evaluaciones simultáneas leerían la misma
+        # tabla de ganadores vacía y registrarían los mismos dos veces.
+        #
+        # Un bingo NO detiene el sorteo: se avisa y la partida sigue, porque
+        # todas las formas juegan a la vez y un bingo de «línea» no debe frenar
+        # una partida en la que «cartón lleno» sigue en juego. Finalizar es
+        # decisión del administrador.
+        await _emitir_ganadores(db, partida, registrar=True)
+
         if partida.estado is EstadoPartida.FINALIZADA:
             await gestor.emitir(canal, evento_estado(partida, total))
 
@@ -174,12 +216,17 @@ async def reiniciar_sorteo(
         for balota in await _balotas_de(db, partida_id):
             await db.delete(balota)
 
+        # Los ganadores se van con las balotas: si quedaran, sus formas
+        # seguirían saliendo como cerradas y nadie podría volver a ganarlas.
+        await borrar_ganadores(db, partida_id)
+
         partida.estado = EstadoPartida.PENDIENTE
         partida.iniciada_en = None
         partida.finalizada_en = None
 
         await db.commit()
         await _emitir_estado(db, partida)
+        await _emitir_ganadores(db, partida, registrar=False)
 
 
 # --- Transiciones de estado -------------------------------------------------

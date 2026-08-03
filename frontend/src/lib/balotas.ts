@@ -2,6 +2,7 @@
  * Cliente de la balotera y tipos de los eventos en tiempo real.
  */
 
+import type { CuadroGanadores } from '@/lib/ganadores'
 import { pedir } from '@/lib/http'
 import type { EstadoPartida } from '@/lib/partidas'
 
@@ -55,7 +56,11 @@ export interface EventoSincronizacion {
   restantes: number
 }
 
-export type EventoPartida = EventoBalota | EventoEstado | EventoSincronizacion
+export type EventoPartida =
+  | EventoBalota
+  | EventoEstado
+  | EventoSincronizacion
+  | CuadroGanadores
 
 function base(partidaId: number): string {
   return `/api/partidas/${partidaId}`
