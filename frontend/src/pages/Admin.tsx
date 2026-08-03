@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 
+import { Cronometro } from '@/components/balotera/Cronometro'
+import { Bola } from '@/components/balotera/Bola'
+import { AvisoBingo } from '@/components/ganadores/AvisoBingo'
 import { Button } from '@/components/ui/button'
 import {
   Card,
@@ -9,34 +12,480 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
+import { usePartidaEnVivo } from '@/hooks/usePartidaEnVivo'
+import { useRelojDeJugada } from '@/hooks/useRelojDeJugada'
 import { obtenerSalud, type EstadoSalud } from '@/lib/api'
+import { cambiarEstado } from '@/lib/balotas'
+import { TOTAL_BALOTAS } from '@/lib/bingo'
+import { resumenCartones } from '@/lib/cartones'
+import { textoCartones } from '@/lib/ganadores'
+import {
+  ETIQUETA_ESTADO,
+  formatearPesos,
+  listarPartidas,
+  obtenerPartida,
+  type Partida,
+} from '@/lib/partidas'
+import { cn } from '@/lib/utils'
 
 /**
- * Panel de administración.
+ * Panel de administración de la partida — tarea #7 de la Fase 1.
  *
- * En la Fase 0 solo comprueba la conexión con el backend (verifica de paso que
- * el proxy HTTP de Vite está bien configurado). Los controles reales de la
- * partida llegan en la tarea #7 de la Fase 1.
+ * Es la vista de mando: en qué va la partida ahora mismo, cuánto se recaudó,
+ * qué premios quedan por repartir y quién ha ganado. Se alimenta del mismo
+ * WebSocket que la balotera y el tablero de la sala, así que las tres pantallas
+ * no pueden discrepar.
+ *
+ * El control balota a balota vive en la balotera (`/admin/partidas/{id}/balotera`)
+ * y no se duplica aquí: tener dos sitios donde cantar sería tener dos relojes
+ * de sorteo automático corriendo a la vez.
  */
 export function Admin() {
-  const [salud, setSalud] = useState<EstadoSalud | null>(null)
+  const [partidas, setPartidas] = useState<Partida[]>([])
+  const [partidaId, setPartidaId] = useState<number | null>(null)
+  const [partida, setPartida] = useState<Partida | null>(null)
+  const [cartones, setCartones] = useState(0)
   const [error, setError] = useState<string | null>(null)
+  const [ocupado, setOcupado] = useState(false)
   const [cargando, setCargando] = useState(true)
+  const [bingoSinAtender, setBingoSinAtender] = useState(false)
 
-  const consultar = useCallback(async () => {
-    setCargando(true)
+  const vivo = usePartidaEnVivo(partidaId ?? Number.NaN)
+  const reloj = useRelojDeJugada(vivo.iniciadaEn)
+
+  // --- Elegir la partida que se está administrando --------------------------
+
+  useEffect(() => {
+    let vigente = true
+
+    void (async () => {
+      try {
+        const lista = await listarPartidas()
+        if (!vigente) return
+        setPartidas(lista)
+        // La que está viva; si no hay ninguna, la más reciente.
+        setPartidaId(
+          lista.find((p) => p.estado !== 'finalizada')?.id ?? lista[0]?.id ?? null,
+        )
+      } catch (e) {
+        if (vigente) {
+          setError(
+            e instanceof Error
+              ? e.message
+              : 'No se pudo contactar el backend. ¿Está corriendo uvicorn?',
+          )
+        }
+      } finally {
+        if (vigente) setCargando(false)
+      }
+    })()
+
+    return () => {
+      vigente = false
+    }
+  }, [])
+
+  // Los premios y los cartones no viajan por el WebSocket. Se releen al cambiar
+  // el estado, que es cuando pueden haber cambiado.
+  const estado = vivo.estado
+  const recargar = useCallback(async () => {
+    if (partidaId === null) return
+    try {
+      const [datos, resumen] = await Promise.all([
+        obtenerPartida(partidaId),
+        resumenCartones(partidaId),
+      ])
+      setPartida(datos)
+      setCartones(resumen.total)
+    } catch {
+      // Se conserva lo que ya había: mejor un dato de hace un momento que un
+      // panel en blanco.
+    }
+  }, [partidaId])
+
+  useEffect(() => {
+    void recargar()
+  }, [recargar, estado])
+
+  // Un bingo recién detectado pide atención; uno que ya estaba, no.
+  const ganadores = vivo.ganadores
+  useEffect(() => {
+    if (ganadores.bingos.some((b) => b.nuevo)) setBingoSinAtender(true)
+    else if (ganadores.bingos.length === 0) setBingoSinAtender(false)
+  }, [ganadores])
+
+  const transicion = async (
+    accion: 'iniciar' | 'pausar' | 'reanudar' | 'finalizar',
+  ) => {
+    if (partidaId === null) return
+    setOcupado(true)
     setError(null)
     try {
-      setSalud(await obtenerSalud())
+      await cambiarEstado(partidaId, accion)
     } catch (e) {
-      setSalud(null)
-      setError(
-        e instanceof Error
-          ? e.message
-          : 'No se pudo contactar el backend. ¿Está corriendo uvicorn?',
-      )
+      setError(e instanceof Error ? e.message : 'No se pudo cambiar el estado.')
     } finally {
-      setCargando(false)
+      setOcupado(false)
+    }
+  }
+
+  if (cargando) {
+    return <p className="text-sm text-muted-foreground">Cargando…</p>
+  }
+
+  const enCurso = vivo.estado === 'en_curso'
+  const premioTotal = partida?.premio_total ?? 0
+  const premioGanado = ganadores.bingos.reduce(
+    (suma, bingo) => suma + bingo.valor_premio,
+    0,
+  )
+  const recaudo = cartones * (partida?.precio_carton ?? 0)
+
+  return (
+    <div className="space-y-6">
+      <header className="flex flex-wrap items-end justify-between gap-4">
+        <div className="space-y-1">
+          <h1 className="text-3xl font-bold tracking-tight">Administración</h1>
+          <p className="text-muted-foreground">
+            {partida
+              ? `Juego No. ${partida.numero_consecutivo} · ${
+                  vivo.estado ? ETIQUETA_ESTADO[vivo.estado] : '—'
+                }`
+              : 'Todavía no hay ninguna partida creada.'}
+          </p>
+        </div>
+
+        {partidas.length > 1 && (
+          <label className="flex items-center gap-2 text-sm">
+            <span className="text-muted-foreground">Partida</span>
+            <select
+              value={partidaId ?? ''}
+              onChange={(e) => setPartidaId(Number(e.target.value))}
+              className="rounded-md border border-input bg-surface px-2.5 py-1.5 text-sm"
+            >
+              {partidas.map((p) => (
+                <option key={p.id} value={p.id}>
+                  Juego {p.numero_consecutivo} · {ETIQUETA_ESTADO[p.estado]}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
+      </header>
+
+      {error && (
+        <p
+          role="alert"
+          className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive"
+        >
+          {error}
+        </p>
+      )}
+
+      {partidaId === null ? (
+        <Card className="max-w-xl">
+          <CardHeader>
+            <CardTitle>Empieza por aquí</CardTitle>
+            <CardDescription>
+              Crea una partida, elige sus formas de ganar y genera los cartones.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-wrap gap-2">
+            <Button asChild size="sm">
+              <Link to="/admin/partidas">Crear una partida</Link>
+            </Button>
+            <Button asChild size="sm" variant="outline">
+              <Link to="/admin/figuras">Abrir el catálogo de figuras</Link>
+            </Button>
+          </CardContent>
+        </Card>
+      ) : (
+        <>
+          <AvisoBingo
+            bingos={ganadores.bingos}
+            totalCartones={ganadores.total_cartones_ganadores}
+            sinAtender={bingoSinAtender}
+            onCerrar={() => setBingoSinAtender(false)}
+          />
+
+          {/* Cifras de un vistazo */}
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <Dato
+              etiqueta="Reloj de la jugada"
+              valor={reloj ?? '—'}
+              detalle={
+                vivo.iniciadaEn ? 'desde que empezó' : 'la partida no ha empezado'
+              }
+              acento={enCurso}
+            />
+            <Dato
+              etiqueta="Balotas"
+              valor={`${vivo.totalCantadas}`}
+              detalle={`de ${TOTAL_BALOTAS} · quedan ${vivo.restantes}`}
+            />
+            <Dato
+              etiqueta="Recaudo"
+              valor={formatearPesos(recaudo)}
+              detalle={`${cartones} cartones a ${formatearPesos(partida?.precio_carton ?? 0)}`}
+            />
+            <Dato
+              etiqueta="Premios por repartir"
+              valor={formatearPesos(premioTotal - premioGanado)}
+              detalle={
+                premioGanado > 0
+                  ? `${formatearPesos(premioGanado)} ya ganados`
+                  : `${formatearPesos(premioTotal)} en juego`
+              }
+            />
+          </div>
+
+          <div className="grid gap-6 lg:grid-cols-[minmax(0,24rem)_1fr] lg:items-start">
+            {/* Control */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Control de la partida</CardTitle>
+                <CardDescription>
+                  Cantar balota a balota se hace en la balotera.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex flex-wrap gap-2">
+                  {vivo.estado === 'pendiente' && (
+                    <Button onClick={() => void transicion('iniciar')} disabled={ocupado}>
+                      Iniciar sorteo
+                    </Button>
+                  )}
+                  {enCurso && (
+                    <Button
+                      variant="secondary"
+                      onClick={() => void transicion('pausar')}
+                      disabled={ocupado}
+                    >
+                      Pausar
+                    </Button>
+                  )}
+                  {vivo.estado === 'pausada' && (
+                    <Button onClick={() => void transicion('reanudar')} disabled={ocupado}>
+                      Reanudar
+                    </Button>
+                  )}
+                  {(enCurso || vivo.estado === 'pausada') && (
+                    <Button
+                      variant="outline"
+                      onClick={() => void transicion('finalizar')}
+                      disabled={ocupado}
+                    >
+                      Finalizar
+                    </Button>
+                  )}
+                </div>
+
+                {vivo.duracionEntreBalotas !== null && (
+                  <div className="border-t border-border pt-4">
+                    <Cronometro
+                      partidaId={partidaId}
+                      segundos={vivo.duracionEntreBalotas}
+                    />
+                  </div>
+                )}
+
+                <div className="flex flex-wrap gap-2 border-t border-border pt-4">
+                  <Button asChild size="sm" variant="success">
+                    <Link to={`/admin/partidas/${partidaId}/balotera`}>
+                      Ir a la balotera
+                    </Link>
+                  </Button>
+                  <Button asChild size="sm" variant="outline">
+                    <a
+                      href={`/transmision?partida=${partidaId}`}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      Tablero de sala ↗
+                    </a>
+                  </Button>
+                </div>
+
+                <div className="flex flex-wrap gap-x-4 gap-y-1 border-t border-border pt-4 text-sm">
+                  <Link
+                    to={`/admin/partidas/${partidaId}`}
+                    className="text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+                  >
+                    Formas de ganar
+                  </Link>
+                  <Link
+                    to={`/admin/partidas/${partidaId}/cartones`}
+                    className="text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+                  >
+                    Cartones
+                  </Link>
+                  <Link
+                    to="/admin/figuras"
+                    className="text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+                  >
+                    Catálogo
+                  </Link>
+                  <Link
+                    to="/admin/partidas"
+                    className="text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+                  >
+                    Todas las partidas
+                  </Link>
+                </div>
+              </CardContent>
+            </Card>
+
+            <div className="space-y-6">
+              {/* Últimas balotas */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Últimas balotas</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {vivo.balotas.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">
+                      Todavía no ha salido ninguna.
+                    </p>
+                  ) : (
+                    <div className="flex flex-wrap items-center gap-2">
+                      {[...vivo.balotas]
+                        .slice(-8)
+                        .reverse()
+                        .map((balota, indice) => (
+                          <Bola
+                            key={balota.numero}
+                            balota={balota}
+                            tamano={indice === 0 ? 'normal' : 'mini'}
+                            destacada={indice === 0}
+                            className={indice === 0 ? 'animate-balota' : undefined}
+                          />
+                        ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Formas y ganadores */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Formas de ganar</CardTitle>
+                  <CardDescription>
+                    Todas juegan a la vez. Una forma ganada deja de estar en juego.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {!partida || partida.figuras.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">
+                      Esta partida todavía no tiene formas configuradas.{' '}
+                      <Link
+                        to={`/admin/partidas/${partidaId}`}
+                        className="text-primary underline-offset-4 hover:underline"
+                      >
+                        Configurarlas
+                      </Link>
+                      .
+                    </p>
+                  ) : (
+                    <ul className="divide-y divide-border">
+                      {partida.figuras.map((forma) => {
+                        const bingo = ganadores.bingos.find(
+                          (b) => b.partida_figura_id === forma.id,
+                        )
+
+                        return (
+                          <li
+                            key={forma.id}
+                            className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 py-2.5"
+                          >
+                            <div className="min-w-0">
+                              <p className="font-medium">{forma.figura.nombre}</p>
+                              {bingo ? (
+                                <p className="text-sm text-success">
+                                  {textoCartones(bingo.cartones.length)}:{' '}
+                                  <span className="font-semibold tabular">
+                                    {bingo.cartones.map((c) => c.codigo).join(', ')}
+                                  </span>{' '}
+                                  <span className="text-muted-foreground">
+                                    · balota {bingo.numero_balota}
+                                  </span>
+                                </p>
+                              ) : (
+                                <p className="text-sm text-muted-foreground">
+                                  En juego
+                                </p>
+                              )}
+                            </div>
+
+                            <span
+                              className={cn(
+                                'font-bold tabular',
+                                bingo ? 'text-success' : 'text-primary',
+                              )}
+                            >
+                              {formatearPesos(forma.valor_premio)}
+                            </span>
+                          </li>
+                        )
+                      })}
+                    </ul>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+        </>
+      )}
+
+      <EstadoDelBackend />
+    </div>
+  )
+}
+
+interface DatoProps {
+  etiqueta: string
+  valor: string
+  detalle: string
+  acento?: boolean
+}
+
+/** Una cifra grande del panel. */
+function Dato({ etiqueta, valor, detalle, acento }: DatoProps) {
+  return (
+    <div className="rounded-lg border border-border bg-surface px-4 py-3">
+      <p className="text-xs uppercase tracking-wider text-muted-foreground">
+        {etiqueta}
+      </p>
+      <p
+        className={cn(
+          'mt-1 text-2xl font-bold tabular',
+          acento ? 'text-success' : 'text-foreground',
+        )}
+      >
+        {valor}
+      </p>
+      <p className="text-xs text-muted-foreground">{detalle}</p>
+    </div>
+  )
+}
+
+/**
+ * Comprobación de que el backend responde.
+ *
+ * Existe desde la Fase 0 y se conserva a propósito: en la instalación final en
+ * LAN es lo primero que hay que mirar cuando una pantalla de la sala se queda
+ * en blanco.
+ */
+function EstadoDelBackend() {
+  const [salud, setSalud] = useState<EstadoSalud | null>(null)
+  const [error, setError] = useState(false)
+
+  const consultar = useCallback(async () => {
+    try {
+      setSalud(await obtenerSalud())
+      setError(false)
+    } catch {
+      setSalud(null)
+      setError(true)
     }
   }, [])
 
@@ -45,95 +494,31 @@ export function Admin() {
   }, [consultar])
 
   return (
-    <div className="space-y-6">
-      <header className="space-y-1">
-        <h1 className="text-3xl font-bold tracking-tight">Administración</h1>
-        <p className="text-muted-foreground">
-          Los controles de la partida se implementan en la tarea #7 de la Fase 1.
-        </p>
-      </header>
-
-      <Card className="max-w-xl">
-        <CardHeader>
-          <CardTitle>Formas de ganar</CardTitle>
-          <CardDescription>
-            Catálogo de figuras: diseña los patrones que pueden ganar y
-            reutilízalos en cualquier partida.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Button asChild size="sm">
-            <Link to="/admin/figuras">Abrir catálogo</Link>
-          </Button>
-        </CardContent>
-      </Card>
-
-      <Card className="max-w-xl">
-        <CardHeader>
-          <CardTitle>Partidas</CardTitle>
-          <CardDescription>
-            Crea una partida y elige qué formas de ganar se juegan en ella, con
-            su premio y su orden.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Button asChild size="sm">
-            <Link to="/admin/partidas">Ver partidas</Link>
-          </Button>
-        </CardContent>
-      </Card>
-
-      <Card className="max-w-xl">
-        <CardHeader>
-          <CardTitle>Conexión con el backend</CardTitle>
-          <CardDescription>
-            Consulta <code className="text-primary">GET /api/health</code> a
-            través del proxy de Vite.
-          </CardDescription>
-        </CardHeader>
-
-        <CardContent className="space-y-4">
-          {cargando && (
-            <p className="text-sm text-muted-foreground">Consultando…</p>
+    <div className="flex flex-wrap items-center gap-x-6 gap-y-2 rounded-lg border border-border bg-surface px-4 py-2.5 text-sm">
+      <span className="flex items-center gap-2">
+        <span
+          className={cn(
+            'size-2 rounded-full',
+            salud?.base_datos ? 'bg-success' : 'bg-destructive',
           )}
+          aria-hidden
+        />
+        <span className="text-muted-foreground">
+          {error
+            ? 'Sin conexión con el backend. ¿Está corriendo uvicorn?'
+            : salud
+              ? `${salud.servicio} v${salud.version} · ${salud.motor_bd}`
+              : 'Comprobando…'}
+        </span>
+      </span>
 
-          {error && (
-            <p className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-              {error}
-            </p>
-          )}
-
-          {salud && (
-            <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
-              <dt className="text-muted-foreground">Servicio</dt>
-              <dd className="font-medium">{salud.servicio}</dd>
-
-              <dt className="text-muted-foreground">Versión</dt>
-              <dd className="font-medium tabular">{salud.version}</dd>
-
-              <dt className="text-muted-foreground">Motor de base de datos</dt>
-              <dd className="font-medium">{salud.motor_bd}</dd>
-
-              <dt className="text-muted-foreground">Base de datos</dt>
-              <dd>
-                <span
-                  className={
-                    salud.base_datos
-                      ? 'font-semibold text-success'
-                      : 'font-semibold text-destructive'
-                  }
-                >
-                  {salud.base_datos ? 'Conectada' : 'Sin conexión'}
-                </span>
-              </dd>
-            </dl>
-          )}
-
-          <Button onClick={() => void consultar()} disabled={cargando} size="sm">
-            Volver a consultar
-          </Button>
-        </CardContent>
-      </Card>
+      <button
+        type="button"
+        onClick={() => void consultar()}
+        className="text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+      >
+        Volver a comprobar
+      </button>
     </div>
   )
 }

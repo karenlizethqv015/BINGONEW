@@ -12,6 +12,8 @@ export interface PartidaEnVivo {
   estado: EstadoPartida | null
   numeroConsecutivo: number | null
   duracionEntreBalotas: number | null
+  /** Cuándo arrancó el sorteo (ISO), para el reloj de la jugada. */
+  iniciadaEn: string | null
   /** Todas las balotas cantadas, en el orden en que salieron. */
   balotas: Balota[]
   /** La más reciente, o null si no ha salido ninguna. */
@@ -32,6 +34,7 @@ const ESTADO_INICIAL: PartidaEnVivo = {
   estado: null,
   numeroConsecutivo: null,
   duracionEntreBalotas: null,
+  iniciadaEn: null,
   balotas: [],
   ultima: null,
   cantadas: new Set(),
@@ -128,6 +131,7 @@ function aplicar(previo: PartidaEnVivo, evento: EventoPartida): PartidaEnVivo {
         estado: evento.estado,
         numeroConsecutivo: evento.numero_consecutivo,
         duracionEntreBalotas: evento.duracion_segundos_entre_balota,
+        iniciadaEn: evento.iniciada_en,
         balotas: evento.balotas,
         ultima: evento.balotas.at(-1) ?? null,
         cantadas: new Set(evento.balotas.map((b) => b.numero)),

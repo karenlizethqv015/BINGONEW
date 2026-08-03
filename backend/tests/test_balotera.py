@@ -322,6 +322,60 @@ def test_cambiar_de_estado_emite_evento(
         app.dependency_overrides.clear()
 
 
+def test_cambiar_el_cronometro_emite_la_sincronizacion(
+    sesion_factory: async_sessionmaker,
+) -> None:
+    """El reloj del sorteo automático vive en el navegador del administrador.
+
+    Si el cambio de cadencia no se emitiera, la balotera seguiría cantando al
+    ritmo viejo hasta que alguien recargara la página.
+    """
+    cliente_ws = _con_base_de_pruebas(sesion_factory)
+    try:
+        partida = cliente_ws.post(
+            "/api/partidas", json={"duracion_segundos_entre_balota": 5}
+        ).json()
+        cliente_ws.post(f"/api/partidas/{partida['id']}/iniciar")
+
+        with cliente_ws.websocket_connect(f"/ws/partida/{partida['id']}") as ws:
+            inicial = _esperar(ws, "sincronizacion")
+            assert inicial["duracion_segundos_entre_balota"] == 5
+
+            cliente_ws.put(
+                f"/api/partidas/{partida['id']}",
+                json={"duracion_segundos_entre_balota": 12},
+            )
+            evento = _esperar(ws, "sincronizacion")
+
+        assert evento["duracion_segundos_entre_balota"] == 12
+        # Y no se pierde nada de lo demás: es la foto completa.
+        assert evento["estado"] == "en_curso"
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_la_sincronizacion_trae_cuando_empezo_la_partida(
+    sesion_factory: async_sessionmaker,
+) -> None:
+    """Es el reloj de la jugada del panel: debe poder ponerse en hora solo."""
+    cliente_ws = _con_base_de_pruebas(sesion_factory)
+    try:
+        partida = cliente_ws.post("/api/partidas", json={}).json()
+
+        with cliente_ws.websocket_connect(f"/ws/partida/{partida['id']}") as ws:
+            antes = _esperar(ws, "sincronizacion")
+            assert antes["iniciada_en"] is None, "todavía no ha empezado"
+
+        cliente_ws.post(f"/api/partidas/{partida['id']}/iniciar")
+
+        with cliente_ws.websocket_connect(f"/ws/partida/{partida['id']}") as ws:
+            despues = _esperar(ws, "sincronizacion")
+
+        assert despues["iniciada_en"] is not None
+    finally:
+        app.dependency_overrides.clear()
+
+
 def test_el_websocket_de_una_partida_inexistente_se_cierra(
     sesion_factory: async_sessionmaker,
 ) -> None:
