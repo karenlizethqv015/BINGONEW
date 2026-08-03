@@ -23,6 +23,11 @@ export default function App() {
   return (
     <BrowserRouter>
       <Routes>
+        {/* La transmisión va FUERA del Layout: se proyecta en el televisor de
+            la sala y debe ocupar la pantalla entera, sin la barra de
+            navegación de la aplicación. */}
+        <Route path="/transmision" element={<Transmision />} />
+
         <Route element={<Layout />}>
           <Route index element={<Inicio />} />
           <Route path="/admin" element={<Admin />} />
@@ -31,7 +36,6 @@ export default function App() {
           <Route path="/admin/partidas/:id" element={<ConfigurarPartida />} />
           <Route path="/admin/partidas/:id/cartones" element={<CartonesPartida />} />
           <Route path="/admin/partidas/:id/balotera" element={<Balotera />} />
-          <Route path="/transmision" element={<Transmision />} />
           <Route path="/jugador" element={<Jugador />} />
           <Route path="/vendedor" element={<Vendedor />} />
           {/* Cualquier ruta desconocida vuelve a la portada. */}
