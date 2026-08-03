@@ -1,0 +1,102 @@
+# Desplegar la demo
+
+Cómo poner la aplicación en una URL pública para enseñársela al cliente, y por
+qué está montada así.
+
+## La decisión: un solo servicio, no dos
+
+`docs/06-arquitectura.md` sugería *frontend en Vercel/Netlify, backend en
+Railway/Render*. **No se hizo así**, y el motivo importa:
+
+El frontend llama al backend con rutas relativas (`/api/...`, `/ws/...`) — es una
+regla del proyecto desde la Fase 0. Separar frontend y backend en dos dominios
+obligaría a escribir el host del backend en el código del frontend, que es
+exactamente lo que esa regla prohíbe, y lo que haría que la instalación en la
+LAN de la sala dejara de funcionar.
+
+Así que **el backend sirve también el frontend compilado**. Todo en un origen:
+
+- No hay CORS que configurar ni URLs que recordar.
+- El WebSocket se conecta solo, con `window.location.host`.
+- Es **la misma forma** que tendrá la instalación final en la sala, así que lo
+  que se prueba en la demo es lo que se va a instalar, no un primo lejano.
+- Una cuenta en un proveedor en vez de dos.
+
+En desarrollo esto no cambia nada: sigue habiendo dos procesos (uvicorn y Vite
+con su proxy), porque hacen falta el recargado en caliente y el compilador.
+
+## Probarlo en local antes de subir nada
+
+Merece la pena: es exactamente lo que va a correr en el servidor.
+
+```powershell
+cd frontend
+npm run build          # genera frontend/dist
+
+cd ..\backend
+.\.venv\Scripts\python.exe -m uvicorn app.main:app --port 8000
+```
+
+Ahora **todo** está en `http://localhost:8000` — sin Vite: la aplicación, la API
+y el WebSocket. Si al arrancar aparece «Sirviendo el frontend compilado desde…»,
+lo encontró. Si dice «Sin frontend compilado», falta `npm run build`.
+
+## Con Docker
+
+La imagen construye el frontend y lo mete dentro del backend:
+
+```powershell
+docker build -t bingo .
+docker run --rm -p 8000:8000 bingo     # http://localhost:8000
+```
+
+Las migraciones se aplican solas al arrancar.
+
+## Subirlo a la web
+
+Sirve cualquier proveedor que sepa construir un `Dockerfile`. **Hace falta una
+cuenta tuya**, así que este paso no está hecho.
+
+### Railway (el camino más corto)
+
+1. Entrar en [railway.app](https://railway.app) con la cuenta de GitHub.
+2. *New Project* → *Deploy from GitHub repo* → elegir `BINGONEW`.
+3. Railway detecta el `Dockerfile` de la raíz y construye. No hay que configurar
+   ningún comando de arranque: ya está en la imagen.
+4. *Settings* → *Networking* → *Generate Domain*. Esa es la URL de la demo.
+
+Render y Fly.io funcionan igual de bien; el `Dockerfile` es el mismo.
+
+### Variables de entorno
+
+Ninguna es obligatoria para la demo. Las que existen:
+
+| Variable         | Para qué                                  | Por defecto                    |
+| ---------------- | ----------------------------------------- | ------------------------------ |
+| `PORT`           | Lo pone el proveedor solo                 | `8000`                         |
+| `DATABASE_URL`   | Pasar a PostgreSQL                        | SQLite en `./bingo.db`         |
+| `FRONTEND_DIST`  | Dónde está el frontend compilado          | lo fija el `Dockerfile`        |
+| `APP_VERSION`    | Se ve en `/api/health`                    | `0.1.0`                        |
+
+### Ojo con la base de datos
+
+La demo usa SQLite en un archivo, y **en Railway y Render el disco se borra en
+cada despliegue**: las partidas y figuras de prueba desaparecen. Para una demo
+suele dar igual —se vuelven a crear en un minuto—, pero si va a enseñarse varios
+días conviene una de estas dos:
+
+- Montar un volumen persistente en la carpeta de la aplicación (Railway lo
+  ofrece), o
+- crear un PostgreSQL en el mismo proveedor y poner su cadena en `DATABASE_URL`.
+
+Lo segundo no exige tocar código: los modelos se escribieron desde el principio
+para funcionar igual en los dos motores (tipo `JSON` genérico y nunca `JSONB`,
+`DateTime(timezone=True)`, nada de SQL específico de un motor). Es la ruta que la
+Fase 2 va a tomar de todas formas.
+
+## Después: la instalación en la sala
+
+Es el mismo `Dockerfile`, corriendo en el PC de la sala en vez de en la nube, con
+PostgreSQL al lado en un `docker-compose.yml`. Los navegadores de la sala entran
+a `http://<ip-del-servidor>:8000`. Como no hay ningún host escrito en el
+frontend, **no hay que recompilar nada** para cambiar de la nube a la LAN.

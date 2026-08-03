@@ -22,6 +22,7 @@ Aplicación web para administrar jornadas de bingo en vivo (venta de cartones vi
 
 ## Otros archivos de la raíz (léanse cuando apliquen)
 
+- `DESPLIEGUE.md` — cómo poner la demo en una URL pública, y por qué el backend sirve también el frontend (un solo origen, igual que la instalación final en la sala).
 - `PROGRESS.md` — estado real del proyecto: qué está hecho, qué sigue, y bitácora de decisiones. **Se lee al inicio de cada sesión y se actualiza al final.** Es la memoria persistente entre sesiones; nunca borrarlo ni resumirlo a la fuerza.
 - `PLAN-CLAUDE-CODE.md` — cómo trabajar el proyecto sesión por sesión (patrón "una tarea de `PROGRESS.md` = una sesión") y qué archivo de `docs/` corresponde a cada tarea de la Fase 1.
 - `SKILLS-RECOMENDADAS.md` — qué skills de Claude Code usar y cuándo. En particular: **usar modo plan antes de implementar la balotera virtual y la validación de ganadores** (son las de reglas más delicadas), y correr `review` sobre el diff antes de marcar una tarea como completa.
@@ -53,7 +54,7 @@ El detalle de fases y su estado actual vive en `PROGRESS.md` — **actualízalo 
 - **Frontend:** React + Vite + TypeScript + TailwindCSS. Diseño desktop-first pero razonablemente responsivo. Debe verse profesional y moderno (no un prototipo gris de wireframe) — es lo que se le muestra al cliente.
 - **Base de datos:** PostgreSQL en producción final (LAN). Para el MVP de demo desplegado en web, puede usarse Postgres gestionado (Railway/Render/Supabase) o SQLite si acelera la entrega — decisión a tomar en la sesión de scaffolding, documentar la elección en `PROGRESS.md`.
 - **Tiempo real:** WebSocket nativo o socket.io-client, un endpoint por partida.
-- **Despliegue MVP demo:** frontend en Vercel/Netlify, backend en Railway/Render/Fly.io (o equivalente). La versión final de producción es Docker Compose corriendo en LAN sin internet — no confundir ambos entornos, ver `docs/06-arquitectura.md`.
+- **Despliegue MVP demo:** **una sola imagen Docker** — el backend sirve también el frontend compilado, así que todo va en un origen. No son dos servicios: separarlos obligaría a escribir el host del backend en el frontend, que es justo lo que prohíbe la regla 1 de abajo. Es además la misma forma que tendrá la instalación final en LAN. Ver `DESPLIEGUE.md`; esto corrige lo que dice `docs/06-arquitectura.md`.
 
 ### Rutas del frontend por rol
 

@@ -387,7 +387,16 @@ export function Balotera() {
           <CardHeader>
             <CardTitle>Tablero</CardTitle>
             <CardDescription>
-              El tablero de sala, en grande y para proyectar, es la tarea #6.
+              Para la sala, en grande y sin controles, usa el{' '}
+              <a
+                href={`/transmision?partida=${partidaId}`}
+                target="_blank"
+                rel="noreferrer"
+                className="text-primary underline-offset-4 hover:underline"
+              >
+                tablero de transmisión ↗
+              </a>
+              .
             </CardDescription>
           </CardHeader>
           <CardContent>

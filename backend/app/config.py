@@ -41,6 +41,17 @@ class Settings(BaseSettings):
     # Muestra el SQL generado por SQLAlchemy en consola. Útil al depurar.
     db_echo: bool = False
 
+    # Carpeta con el frontend ya compilado (`npm run build`).
+    #
+    # Si existe, el backend la sirve él mismo y toda la aplicación queda en un
+    # solo origen. Es lo que hace que el frontend nunca tenga que escribir un
+    # host ni un puerto (regla de la Fase 0), y vale igual para la demo en la
+    # web que para la instalación final en la LAN de la sala.
+    #
+    # En desarrollo no existe y no se sirve nada: de eso se encarga Vite con su
+    # proxy.
+    frontend_dist: str = "../frontend/dist"
+
 
 @lru_cache
 def get_settings() -> Settings:
