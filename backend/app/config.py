@@ -52,6 +52,17 @@ class Settings(BaseSettings):
     # proxy.
     frontend_dist: str = "../frontend/dist"
 
+    # Clave única y compartida que protege lo que MODIFICA la partida.
+    #
+    # No es el login de la Fase 2: no hay usuarios, ni contraseñas por persona,
+    # ni sesiones. Es una tranca para que un curioso con el enlace de la demo
+    # pública no reinicie el sorteo en mitad de la jugada.
+    #
+    # **Vacía (lo de por defecto) significa todo abierto**, que es lo que hace
+    # falta en desarrollo y en la LAN de la sala, donde no hay nadie de fuera.
+    # En la demo desplegada se define la variable de entorno ADMIN_CLAVE.
+    admin_clave: str = ""
+
 
 @lru_cache
 def get_settings() -> Settings:

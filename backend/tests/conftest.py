@@ -12,13 +12,27 @@ from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app.db import Base, get_db
+from app.dominio.bingo import TOTAL_BALOTAS
 from app.main import app
 from app.models import Figura  # noqa: F401  (registra la tabla en Base.metadata)
+from app.servicios.ganadores import olvidar_precalculo
 
 # Base de datos en memoria. `cache=shared` es necesario para que todas las
 # conexiones del pool vean las mismas tablas; sin eso, cada conexión abriría su
 # propia base vacía.
 URL_PRUEBAS = "sqlite+aiosqlite:///file:pruebas?mode=memory&cache=shared&uri=true"
+
+
+@pytest.fixture(autouse=True)
+def sin_precalculo_de_partidas_anteriores() -> None:
+    """Vacía el precálculo de máscaras antes de cada prueba.
+
+    El precálculo vive en memoria del proceso, y cada prueba arranca con una
+    base nueva donde los identificadores de partida vuelven a empezar en 1. Sin
+    esto, una prueba podría evaluar los ganadores con los cartones de la
+    anterior.
+    """
+    olvidar_precalculo()
 
 
 @pytest.fixture
@@ -59,6 +73,42 @@ async def cliente(sesion_factory: async_sessionmaker) -> AsyncGenerator[AsyncCli
         yield c
 
     app.dependency_overrides.clear()
+
+
+@pytest.fixture
+def cantar_todas(cliente: AsyncClient):
+    """Canta balotas hasta agotarlas, reanudando cada vez que un bingo pausa.
+
+    Desde que un bingo detiene el sorteo, un `for _ in range(75)` a secas ya no
+    saca 75 balotas: en cuanto alguien gana, la partida queda pausada y el resto
+    de peticiones responden 409. Este ayudante hace lo mismo que el
+    administrador —atender el bingo y reanudar—, así que las pruebas que
+    necesitan un sorteo entero siguen expresando lo que quieren comprobar sin
+    llenarse de reanudaciones a mano.
+
+    Devuelve cuántas balotas llegaron a salir.
+    """
+
+    async def _cantar(partida_id: int, hasta: int = TOTAL_BALOTAS) -> int:
+        sacadas = 0
+        while sacadas < hasta:
+            respuesta = await cliente.post(f"/api/partidas/{partida_id}/balotas")
+            if respuesta.status_code == 201:
+                sacadas += 1
+                continue
+
+            # 409: o se pausó por un bingo, o ya no hay nada que sacar.
+            sorteo = (await cliente.get(f"/api/partidas/{partida_id}/sorteo")).json()
+            if sorteo["estado"] != "pausada":
+                break
+
+            reanudar = await cliente.post(f"/api/partidas/{partida_id}/reanudar")
+            if reanudar.status_code != 200:
+                break
+
+        return sacadas
+
+    return _cantar
 
 
 @pytest.fixture

@@ -74,25 +74,102 @@ Ninguna es obligatoria para la demo. Las que existen:
 | Variable         | Para qué                                  | Por defecto                    |
 | ---------------- | ----------------------------------------- | ------------------------------ |
 | `PORT`           | Lo pone el proveedor solo                 | `8000`                         |
-| `DATABASE_URL`   | Pasar a PostgreSQL                        | SQLite en `./bingo.db`         |
+| `DATABASE_URL`   | Dónde vive la base de datos               | SQLite en `./bingo.db`         |
+| `ADMIN_CLAVE`    | Protege lo que modifica la partida        | vacía (todo abierto)           |
 | `FRONTEND_DIST`  | Dónde está el frontend compilado          | lo fija el `Dockerfile`        |
 | `APP_VERSION`    | Se ve en `/api/health`                    | `0.1.0`                        |
+
+### La clave de administración
+
+Con la URL pública, cualquiera que tenga el enlace puede entrar a `/admin` y
+reiniciar el sorteo en mitad de la demo. `ADMIN_CLAVE` lo evita:
+
+1. En Railway, *Variables* → `ADMIN_CLAVE` = lo que se quiera.
+2. La primera vez que se intente cambiar algo, la aplicación la pide y la guarda
+   en el navegador. Hay un «Salir de administración» abajo a la derecha.
+
+**Las pantallas del público no la necesitan.** `/transmision` y `/jugador` solo
+consultan, y el canal en tiempo real está abierto: el jefe puede abrir su cartón
+sin que nadie le dé ninguna clave. Eso es a propósito y hay una prueba que lo
+fija.
+
+Que quede claro qué es y qué no: **no es el login de la Fase 2**. No hay
+usuarios, ni contraseñas por persona, ni sesiones. Es una tranca para la demo.
+Sin definirla, todo queda abierto, que es lo correcto en desarrollo y en la LAN
+de la sala.
 
 ### Ojo con la base de datos
 
 La demo usa SQLite en un archivo, y **en Railway y Render el disco se borra en
-cada despliegue**: las partidas y figuras de prueba desaparecen. Para una demo
-suele dar igual —se vuelven a crear en un minuto—, pero si va a enseñarse varios
-días conviene una de estas dos:
+cada despliegue**: las partidas, figuras y cartones desaparecen.
 
-- Montar un volumen persistente en la carpeta de la aplicación (Railway lo
-  ofrece), o
-- crear un PostgreSQL en el mismo proveedor y poner su cadena en `DATABASE_URL`.
+Para que sobrevivan, en Railway:
 
-Lo segundo no exige tocar código: los modelos se escribieron desde el principio
-para funcionar igual en los dos motores (tipo `JSON` genérico y nunca `JSONB`,
-`DateTime(timezone=True)`, nada de SQL específico de un motor). Es la ruta que la
-Fase 2 va a tomar de todas formas.
+1. *Settings* → *Volumes* → *New Volume*, con punto de montaje `/data`.
+2. *Variables* → `DATABASE_URL` = `sqlite+aiosqlite:////data/bingo.db`
+   (**cuatro barras**: tres del esquema más la de la ruta absoluta).
+3. Volver a desplegar. Las migraciones crean el esquema solas al arrancar.
+
+> **Si el despliegue falla justo después de montar el volumen**, mira el log: lo
+> más probable es un error de permisos al abrir `/data/bingo.db`. La imagen corre
+> como un usuario sin privilegios (`USER bingo`) y los volúmenes se montan como
+> root. Se arregla dándole permiso a la carpeta desde el panel del proveedor, o
+> pasando a PostgreSQL, que no tiene este problema.
+
+La otra ruta es **crear un PostgreSQL** en el mismo proveedor y poner su cadena
+en `DATABASE_URL`. No exige tocar código: los modelos se escribieron desde el
+principio para funcionar igual en los dos motores (tipo `JSON` genérico y nunca
+`JSONB`, `DateTime(timezone=True)`, nada de SQL específico de un motor). Es la
+ruta que la Fase 2 va a tomar de todas formas.
+
+## Enseñarle la demo a otra persona
+
+Con la aplicación en una URL pública **no hace falta ninguna red local**: quien
+la vea abre el enlace desde donde esté, con su propio celular. Lo que hace que
+funcione es que todas las pantallas se alimentan del **mismo WebSocket de la
+partida**: uno canta las balotas y las demás reaccionan solas.
+
+**Antes**, con calma: crear las figuras en `/admin/figuras`, la partida en
+`/admin/partidas` con sus formas y premios, y generar los cartones.
+
+**Durante:**
+
+| Quién              | Dónde                                    |
+| ------------------ | ---------------------------------------- |
+| Quien dirige       | `/admin/partidas/{id}/balotera`          |
+| La sala / el TV    | `/transmision?partida={id}`              |
+| El invitado        | `/jugador?partida={id}&carton=A-7`       |
+
+Para el invitado no hace falta dictarle esa dirección: en la pantalla de cartones,
+cada cartón tiene un botón **«Enlace y QR»**. Se le enseña el QR, lo escanea con
+la cámara y entra directo a su cartón.
+
+Lo que se ve al cantar: el número aparece a la vez en el tablero de la sala y en
+el celular del invitado, **y su cartón se marca solo**. Cuando alguien completa
+una forma, **el sorteo se detiene solo**, salta el aviso de bingo en la pantalla
+de mando y el ¡BINGO! sobre el cartón del ganador. Se reanuda con el botón del
+propio aviso.
+
+### Sin internet, en una red local
+
+Es la forma que tendrá la instalación definitiva. En el PC que haga de servidor:
+
+```powershell
+docker build -t bingo .
+docker run -d -p 8000:8000 -v bingo-datos:/data `
+  -e DATABASE_URL=sqlite+aiosqlite:////data/bingo.db bingo
+```
+
+Abrir el puerto una sola vez, en PowerShell **como administrador**:
+
+```powershell
+New-NetFirewallRule -DisplayName "Bingo" -Direction Inbound -LocalPort 8000 -Protocol TCP -Action Allow
+```
+
+Los demás equipos y celulares entran a `http://<ip-del-servidor>:8000` (la IP
+sale de `ipconfig`). **No hay que recompilar nada** para pasar de la nube a la
+red local: como el frontend no lleva ningún host escrito, se conecta solo a donde
+esté servido.
 
 ## Después: la instalación en la sala
 

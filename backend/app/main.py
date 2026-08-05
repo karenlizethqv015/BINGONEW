@@ -27,7 +27,7 @@ from app.realtime.eventos import (
 )
 from app.realtime.manager import gestor
 from app.routers import balotas, cartones, figuras, health, partidas
-from app.servicios.ganadores import evaluar_partida
+from app.servicios.ganadores import cuadro_recordado, evaluar_partida
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -109,10 +109,17 @@ async def websocket_partida(
         )
         sincronizacion = evento_sincronizacion(partida, balotas_cantadas)
 
-        # Solo consulta: los ganadores se registran al cantar la balota, no
-        # porque alguien abra una pantalla.
-        cuadro, orden = await evaluar_partida(sesion, partida_id, registrar=False)
-        ganadores = evento_ganadores(partida, cuadro, orden)
+        # El cuadro que le toca a quien llega es exactamente el último que se
+        # emitió, así que se reutiliza en vez de recalcularlo: en una sala llena
+        # son cientos de jugadores conectándose casi a la vez, y evaluar una
+        # partida de 5000 cartones para cada uno bloquearía el servidor durante
+        # segundos. Solo se calcula si aún no se ha emitido ninguno.
+        ganadores = cuadro_recordado(partida_id)
+        if ganadores is None:
+            # Solo consulta: los ganadores se registran al cantar la balota, no
+            # porque alguien abra una pantalla.
+            cuadro, orden = await evaluar_partida(sesion, partida_id, registrar=False)
+            ganadores = evento_ganadores(partida, cuadro, orden)
 
     canal = canal_de_partida(partida_id)
     await gestor.conectar(canal, websocket)

@@ -21,6 +21,11 @@ async def test_una_partida_nueva_no_tiene_cartones(cliente: AsyncClient) -> None
 
 
 async def test_generar_cartones(cliente: AsyncClient) -> None:
+    """La generación responde con el resumen de la tanda, no con los cartones.
+
+    Con 5000 cartones la lista completa serían varios megabytes que la pantalla
+    ni mira: recarga la primera página aparte.
+    """
     partida = await _crear_partida(cliente)
 
     respuesta = await cliente.post(
@@ -28,9 +33,15 @@ async def test_generar_cartones(cliente: AsyncClient) -> None:
     )
 
     assert respuesta.status_code == 201
+    assert respuesta.json() == {
+        "cantidad": 10,
+        "serie": "A",
+        "desde": 1,
+        "hasta": 10,
+        "total_en_partida": 10,
+    }
 
-    cartones = respuesta.json()
-    assert len(cartones) == 10
+    cartones = (await cliente.get(f"/api/partidas/{partida}/cartones")).json()
     assert [c["numero_carton"] for c in cartones] == list(range(1, 11))
     assert all(c["serie"] == "A" for c in cartones)
 
@@ -39,10 +50,10 @@ async def test_los_cartones_generados_son_validos(cliente: AsyncClient) -> None:
     """Lo que llega por la API debe cumplir las reglas del bingo de 75 bolas."""
     partida = await _crear_partida(cliente)
 
-    cartones = (
-        await cliente.post(f"/api/partidas/{partida}/cartones", json={"cantidad": 25})
-    ).json()
+    await cliente.post(f"/api/partidas/{partida}/cartones", json={"cantidad": 25})
+    cartones = (await cliente.get(f"/api/partidas/{partida}/cartones")).json()
 
+    assert len(cartones) == 25
     for carton in cartones:
         validar_carton(carton["numeros"])
 
@@ -50,8 +61,11 @@ async def test_los_cartones_generados_son_validos(cliente: AsyncClient) -> None:
 async def test_los_cartones_de_una_partida_no_se_repiten(cliente: AsyncClient) -> None:
     partida = await _crear_partida(cliente)
 
+    await cliente.post(f"/api/partidas/{partida}/cartones", json={"cantidad": 50})
     cartones = (
-        await cliente.post(f"/api/partidas/{partida}/cartones", json={"cantidad": 50})
+        await cliente.get(
+            f"/api/partidas/{partida}/cartones", params={"limite": 50}
+        )
     ).json()
 
     firmas = {firma_carton(c["numeros"]) for c in cartones}
@@ -67,7 +81,8 @@ async def test_el_consecutivo_continua_entre_tandas(cliente: AsyncClient) -> Non
         await cliente.post(f"/api/partidas/{partida}/cartones", json={"cantidad": 3})
     ).json()
 
-    assert [c["numero_carton"] for c in segunda] == [6, 7, 8]
+    assert (segunda["desde"], segunda["hasta"]) == (6, 8)
+    assert segunda["total_en_partida"] == 8
 
     resumen = (await cliente.get(f"/api/partidas/{partida}/cartones/resumen")).json()
     assert resumen["total"] == 8
@@ -87,7 +102,8 @@ async def test_las_series_llevan_consecutivos_independientes(
         )
     ).json()
 
-    assert [c["numero_carton"] for c in serie_b] == [1, 2, 3]
+    # La serie B empieza en 1 aunque la A ya tenga cuatro.
+    assert (serie_b["serie"], serie_b["desde"], serie_b["hasta"]) == ("B", 1, 3)
 
     resumen = (await cliente.get(f"/api/partidas/{partida}/cartones/resumen")).json()
     assert resumen == {"total": 7, "por_serie": {"A": 4, "B": 3}}
@@ -164,9 +180,8 @@ async def test_borrar_la_partida_borra_sus_cartones(cliente: AsyncClient) -> Non
 async def test_obtener_carton_por_codigo(cliente: AsyncClient) -> None:
     """Es como el jugador llega a su cartón: escribiendo el código que tiene."""
     partida = await _crear_partida(cliente)
-    creados = (
-        await cliente.post(f"/api/partidas/{partida}/cartones", json={"cantidad": 5})
-    ).json()
+    await cliente.post(f"/api/partidas/{partida}/cartones", json={"cantidad": 5})
+    creados = (await cliente.get(f"/api/partidas/{partida}/cartones")).json()
     tercero = creados[2]
 
     respuesta = await cliente.get(f"/api/partidas/{partida}/cartones/A/3")

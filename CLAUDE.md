@@ -91,7 +91,11 @@ python -m venv .venv
 .\.venv\Scripts\python.exe -m pytest tests/test_health.py                            # un archivo
 .\.venv\Scripts\python.exe -m pytest tests/test_health.py::test_health_responde_ok    # UN SOLO TEST
 .\.venv\Scripts\python.exe -m pytest -k websocket                                    # por nombre
+.\.venv\Scripts\python.exe -m pytest -m lento -s                                     # PRUEBA DE CARGA (5000 cartones)
 ```
+
+La prueba de carga no corre con la suite normal: genera 5000 cartones y canta las
+75 balotas. El `-s` es lo que hace que imprima los tiempos reales por balota.
 
 ### Frontend (desde `frontend/`)
 
@@ -128,6 +132,8 @@ Cuatro reglas que no son evidentes leyendo el código y que cuesta caro descubri
 2. **Ningún color suelto de Tailwind.** Nada de `bg-slate-800` ni `text-yellow-400`: todo color sale de los tokens de `frontend/src/index.css` (`bg-surface`, `text-primary`, `text-success`…). Es lo que mantiene la identidad visual coherente y permite ajustarla desde un solo archivo.
 3. **Alembic solo ve los modelos importados en `backend/app/models/__init__.py`.** Si un modelo nuevo no se importa ahí, `--autogenerate` produce una migración **vacía sin dar ningún error**. Revisar siempre el archivo generado antes de aplicarlo.
 4. **Los modelos deben seguir siendo compatibles con PostgreSQL** aunque la demo corra en SQLite: tipo `JSON` genérico (nunca `JSONB`), `DateTime(timezone=True)`, y nada de SQL crudo específico de un motor. El detalle está en `backend/README.md`.
+5. **La validación de ganadores trabaja con máscaras de bits precalculadas, no recorriendo cartones.** Las salas grandes juegan con 5000 cartones: qué balotas exige cada forma sobre cada cartón se calcula **una vez por partida** y se guarda en `app/servicios/ganadores.py`, con un sello que lo invalida solo si cambian los cartones o los patrones. Si alguien vuelve a meter un `numeros_requeridos` dentro del bucle por balota, la partida pasa de 22 ms a más de 130 ms por balota y bloquea los WebSockets de toda la sala. Hay una prueba de carga que lo vigila (`pytest -m lento`).
+6. **La clave de administración (`ADMIN_CLAVE`) NO es el login de la Fase 2.** Es una sola clave compartida que protege lo que modifica; se aplica por método HTTP en `app/seguridad.py`, no ruta por ruta. Las consultas y el WebSocket quedan abiertos a propósito: `/transmision` y `/jugador` son pantallas del público. Vacía = todo abierto (desarrollo y LAN).
 
 ## Reglas de dominio que no se negocian (bingo de 75 bolas)
 
@@ -139,7 +145,7 @@ Estas reglas son las más fáciles de equivocar y las más caras de corregir des
 - Toda balota sorteada se registra en `balota_cantada` con su orden y timestamp, venga de balotera virtual o física.
 - El evento WebSocket de balota debe ser **idéntico** para fuente virtual y física: cuando se integre la balotera real, solo cambia la fuente, no el resto del sistema.
 - El sorteo termina al agotarse las 75 balotas, o cuando el administrador lo finaliza a mano.
-- **Un bingo NO detiene el sorteo:** se avisa y la partida sigue. Todas las formas juegan a la vez, así que un bingo de «línea» no debe frenar una partida en la que «cartón lleno» sigue en juego.
+- **Un bingo DETIENE el sorteo:** al detectarse un ganador la partida se **pausa sola**, para que el encargado pueda acercarse a la persona y acordar el premio. Se pausa, no se finaliza: las demás formas siguen en juego y el administrador reanuda cuando quiera. Agotar las 75 balotas manda sobre la pausa (una partida finalizada no se despausa). *(Esta regla sustituye a la contraria, vigente hasta el 2026-08-05; ver la bitácora de `PROGRESS.md`.)*
 - **Una forma ganada se cierra:** solo ganan los cartones que la completan en la MISMA balota, y comparten el premio. Quien la complete después llegó tarde. Sin esta regla, con las 75 balotas fuera todos los cartones habrían ganado todo.
 - **La casilla libre no exige ninguna balota:** una figura que la incluya exige una balota menos que celdas tiene. Una figura formada solo por la casilla libre se ignora.
 - **Quién ganó lo decide siempre el backend**, nunca el navegador: hay dinero detrás. El marcado del cartón sí se resuelve en el cliente, que es otra cosa. Detalle completo en `docs/11-avisos-y-validacion-de-ganadores.md`.

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 
 import { CartonBingo } from '@/components/cartones/CartonBingo'
+import { QrDeCarton } from '@/components/cartones/QrDeCarton'
 import { Button } from '@/components/ui/button'
 import {
   Card,
@@ -15,7 +16,10 @@ import {
   MAXIMO_POR_PETICION,
   eliminarCartones,
   generarCartones,
+  codigoDeCarton,
   listarCartones,
+  obtenerCartonPorCodigo,
+  partirCodigo,
   resumenCartones,
   type Carton,
   type ResumenCartones,
@@ -44,11 +48,25 @@ export function CartonesPartida() {
   const [serie, setSerie] = useState('A')
   const [confirmandoBorrado, setConfirmandoBorrado] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [aviso, setAviso] = useState<string | null>(null)
   const [cargando, setCargando] = useState(true)
   const [generando, setGenerando] = useState(false)
+  const [busqueda, setBusqueda] = useState('')
+  /** Serie que se está viendo, o null para verlas todas. */
+  const [serieVista, setSerieVista] = useState<string | null>(null)
+  /** Código del cartón cuyo QR se está enseñando, o null. */
+  const [qrDe, setQrDe] = useState<string | null>(null)
 
+  /**
+   * Trae una página de cartones.
+   *
+   * La serie viaja siempre explícita (null = todas) en vez de leerse del
+   * estado: así esta función solo depende de la partida y el efecto de abajo no
+   * se vuelve a disparar al cambiar de serie, pisando la página a la que se
+   * acaba de saltar.
+   */
   const cargar = useCallback(
-    async (paginaPedida: number) => {
+    async (paginaPedida: number, serieFiltrada: string | null) => {
       setCargando(true)
       setError(null)
       try {
@@ -56,6 +74,7 @@ export function CartonesPartida() {
           obtenerPartida(partidaId),
           resumenCartones(partidaId),
           listarCartones(partidaId, {
+            serie: serieFiltrada ?? undefined,
             limite: POR_PAGINA,
             desplazamiento: paginaPedida * POR_PAGINA,
           }),
@@ -64,6 +83,7 @@ export function CartonesPartida() {
         setResumen(datosResumen)
         setCartones(lista)
         setPagina(paginaPedida)
+        setSerieVista(serieFiltrada)
       } catch (e) {
         setError(e instanceof Error ? e.message : 'No se pudieron cargar los cartones.')
       } finally {
@@ -74,20 +94,25 @@ export function CartonesPartida() {
   )
 
   useEffect(() => {
-    void cargar(0)
+    void cargar(0, null)
   }, [cargar])
 
   const generar = async () => {
     setGenerando(true)
     setError(null)
+    setAviso(null)
     try {
-      await generarCartones(partidaId, {
+      const tanda = await generarCartones(partidaId, {
         cantidad: Number(cantidad) || 1,
         serie: serie.trim() || 'A',
       })
+      setAviso(
+        `Se generaron ${tanda.cantidad} cartones: ` +
+          `${tanda.serie}-${tanda.desde} a ${tanda.serie}-${tanda.hasta}.`,
+      )
       // Se recarga desde el backend en lugar de agregar a la lista local: así
       // el resumen y la paginación quedan consistentes con lo que hay guardado.
-      await cargar(0)
+      await cargar(0, tanda.serie)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'No se pudieron generar los cartones.')
     } finally {
@@ -95,11 +120,42 @@ export function CartonesPartida() {
     }
   }
 
+  /**
+   * Salta a la página donde está un cartón, buscándolo por su código.
+   *
+   * Con 5000 cartones son más de doscientas páginas: llegar al «A-4300» a base
+   * de pulsar «Siguiente» no es una forma de navegar.
+   *
+   * La página sale de una división porque dentro de una serie la numeración es
+   * consecutiva desde 1 —los cartones solo se borran todos o por serie entera,
+   * nunca sueltos—, así que el cartón número N ocupa la posición N-1. Primero
+   * se pide el cartón al backend: así el aviso de «no existe» es cierto y no
+   * una página vacía.
+   */
+  const saltarACodigo = async () => {
+    const partes = partirCodigo(busqueda)
+    if (!partes) {
+      setError('Escribe un código como A-4300.')
+      return
+    }
+
+    setError(null)
+    setAviso(null)
+    try {
+      await obtenerCartonPorCodigo(partidaId, partes.serie, partes.numero)
+      await cargar(Math.floor((partes.numero - 1) / POR_PAGINA), partes.serie)
+      setAviso(`Cartón ${partes.serie}-${partes.numero} encontrado.`)
+    } catch {
+      setError(`No existe el cartón ${partes.serie}-${partes.numero}.`)
+    }
+  }
+
   const borrarTodos = async () => {
     setError(null)
+    setAviso(null)
     try {
       await eliminarCartones(partidaId)
-      await cargar(0)
+      await cargar(0, null)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'No se pudieron eliminar los cartones.')
     } finally {
@@ -108,7 +164,11 @@ export function CartonesPartida() {
   }
 
   const total = resumen?.total ?? 0
-  const totalPaginas = Math.max(1, Math.ceil(total / POR_PAGINA))
+  // Al filtrar por una serie, la paginación cuenta esa serie y no la partida
+  // entera; si no, saldrían páginas vacías al final.
+  const totalVisible =
+    serieVista !== null ? (resumen?.por_serie[serieVista] ?? 0) : total
+  const totalPaginas = Math.max(1, Math.ceil(totalVisible / POR_PAGINA))
 
   return (
     <div className="space-y-6">
@@ -145,6 +205,15 @@ export function CartonesPartida() {
           className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive"
         >
           {error}
+        </p>
+      )}
+
+      {aviso && (
+        <p
+          role="status"
+          className="rounded-md border border-success/40 bg-success/10 px-3 py-2 text-sm text-success"
+        >
+          {aviso}
         </p>
       )}
 
@@ -249,6 +318,36 @@ export function CartonesPartida() {
         </Card>
 
         <section className="space-y-4">
+          {/* Ir directo a un cartón. Con 5000 son más de 200 páginas: sin esto
+              solo se puede llegar pulsando «Siguiente» doscientas veces. */}
+          {total > POR_PAGINA && (
+            <div className="flex flex-wrap items-center gap-2">
+              <Input
+                aria-label="Buscar cartón por código"
+                placeholder="Ir al cartón (ej. A-4300)"
+                value={busqueda}
+                onChange={(e) => setBusqueda(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') void saltarACodigo()
+                }}
+                className="w-56"
+              />
+              <Button variant="outline" onClick={() => void saltarACodigo()}>
+                Ir
+              </Button>
+
+              {serieVista !== null && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => void cargar(0, null)}
+                >
+                  Ver todas las series
+                </Button>
+              )}
+            </div>
+          )}
+
           {cargando ? (
             <p className="text-sm text-muted-foreground">Cargando…</p>
           ) : cartones.length === 0 ? (
@@ -264,11 +363,19 @@ export function CartonesPartida() {
             <>
               <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
                 {cartones.map((carton) => (
-                  <li key={carton.id}>
+                  <li key={carton.id} className="space-y-1.5">
                     <CartonBingo
                       numeros={carton.numeros}
-                      etiqueta={`${carton.serie}-${carton.numero_carton}`}
+                      etiqueta={codigoDeCarton(carton)}
                     />
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="w-full"
+                      onClick={() => setQrDe(codigoDeCarton(carton))}
+                    >
+                      Enlace y QR
+                    </Button>
                   </li>
                 ))}
               </ul>
@@ -279,18 +386,19 @@ export function CartonesPartida() {
                     size="sm"
                     variant="outline"
                     disabled={pagina === 0}
-                    onClick={() => void cargar(pagina - 1)}
+                    onClick={() => void cargar(pagina - 1, serieVista)}
                   >
                     Anterior
                   </Button>
                   <span className="text-sm tabular text-muted-foreground">
+                    {serieVista !== null && `Serie ${serieVista} · `}
                     {pagina + 1} / {totalPaginas}
                   </span>
                   <Button
                     size="sm"
                     variant="outline"
                     disabled={pagina + 1 >= totalPaginas}
-                    onClick={() => void cargar(pagina + 1)}
+                    onClick={() => void cargar(pagina + 1, serieVista)}
                   >
                     Siguiente
                   </Button>
@@ -300,6 +408,14 @@ export function CartonesPartida() {
           )}
         </section>
       </div>
+
+      {qrDe && (
+        <QrDeCarton
+          partidaId={partidaId}
+          codigo={qrDe}
+          onCerrar={() => setQrDe(null)}
+        />
+      )}
     </div>
   )
 }

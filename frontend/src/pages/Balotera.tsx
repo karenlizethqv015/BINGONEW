@@ -89,6 +89,12 @@ export function Balotera() {
   useEffect(() => {
     if (ganadores.bingos.some((bingo) => bingo.nuevo)) {
       setBingoSinAtender(true)
+      // El backend pausa la partida al detectar el bingo, pero el reloj del
+      // automático vive en esta pestaña y hay que apagarlo desde aquí: si no,
+      // alcanza a pedir otra balota antes de que llegue el evento de estado y
+      // el administrador se encuentra un error en rojo justo en el momento del
+      // bingo.
+      setAutomatico(false)
     } else if (ganadores.bingos.length === 0) {
       // Se reinició el sorteo: no queda nada que atender.
       setBingoSinAtender(false)
@@ -157,12 +163,18 @@ export function Balotera() {
         </div>
       </header>
 
-      {/* Lo primero que hay que ver: alguien ganó. */}
+      {/* Lo primero que hay que ver: alguien ganó. Y como el bingo detiene el
+          sorteo, reanudarlo se ofrece aquí mismo. */}
       <AvisoBingo
         bingos={ganadores.bingos}
         totalCartones={ganadores.total_cartones_ganadores}
         sinAtender={bingoSinAtender}
         onCerrar={() => setBingoSinAtender(false)}
+        onReanudar={
+          vivo.estado === 'pausada'
+            ? () => void transicion('reanudar')
+            : undefined
+        }
       />
 
       {/* Conexión en tiempo real */}

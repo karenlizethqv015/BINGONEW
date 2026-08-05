@@ -1,5 +1,6 @@
 import { Link, NavLink, Outlet } from 'react-router-dom'
 
+import { PedirClaveAdmin } from '@/components/PedirClaveAdmin'
 import { cn } from '@/lib/utils'
 
 interface Ruta {
@@ -74,6 +75,10 @@ export function Layout() {
       <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-8">
         <Outlet />
       </main>
+
+      {/* Aquí y no en cada pantalla: la clave hace falta en cualquier acción
+          que modifique la partida. Solo aparece si el servidor la exige. */}
+      <PedirClaveAdmin />
     </div>
   )
 }

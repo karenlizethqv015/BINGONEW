@@ -6,7 +6,9 @@ conectarse una pantalla y al consultar por HTTP—, y los tres tienen que ver
 exactamente el mismo cuadro.
 """
 
-from sqlalchemy import select
+from dataclasses import dataclass
+
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.dominio.ganadores import (
@@ -14,7 +16,9 @@ from app.dominio.ganadores import (
     CuadroDeGanadores,
     FormaEnJuego,
     GanadorRegistrado,
+    Mascaras,
     evaluar,
+    mascaras_de,
 )
 from app.models.balota_cantada import BalotaCantada
 from app.models.carton import Carton
@@ -22,23 +26,27 @@ from app.models.ganador import Ganador
 from app.models.partida_figura import PartidaFigura
 
 
-def codigo_de_carton(carton: Carton) -> str:
+def codigo_de_carton(serie: str, numero_carton: int) -> str:
     """Código visible del cartón dentro de su partida, como «A-7»."""
-    return f"{carton.serie}-{carton.numero_carton}"
+    return f"{serie}-{numero_carton}"
 
 
 async def _cartones_de(db: AsyncSession, partida_id: int) -> list[CartonEnJuego]:
-    filas = (
-        await db.execute(
-            select(Carton)
-            .where(Carton.partida_id == partida_id)
-            .order_by(Carton.serie, Carton.numero_carton)
-        )
-    ).scalars()
+    """Los cartones de la partida, con lo justo para evaluarlos.
+
+    Se piden columnas sueltas y no entidades: con 5000 cartones, construir 5000
+    objetos del ORM y meterlos en el mapa de identidad de la sesión cuesta más
+    que la propia consulta, y aquí no se va a modificar ninguno.
+    """
+    filas = await db.execute(
+        select(Carton.id, Carton.serie, Carton.numero_carton, Carton.numeros)
+        .where(Carton.partida_id == partida_id)
+        .order_by(Carton.serie, Carton.numero_carton)
+    )
 
     return [
-        CartonEnJuego(id=c.id, codigo=codigo_de_carton(c), numeros=c.numeros)
-        for c in filas
+        CartonEnJuego(id=id_, codigo=codigo_de_carton(serie, numero), numeros=numeros)
+        for id_, serie, numero, numeros in filas
     ]
 
 
@@ -62,6 +70,167 @@ async def _formas_de(db: AsyncSession, partida_id: int) -> list[FormaEnJuego]:
         )
         for pf in filas
     ]
+
+
+# --- Precálculo de las máscaras, cacheado por partida ------------------------
+#
+# Qué balotas exige cada forma sobre cada cartón no cambia durante el sorteo, y
+# es lo caro de calcular: 5000 cartones por 10 formas son 50.000 cuentas. Sin
+# caché se rehacían en CADA balota, 75 veces, y también cada vez que una
+# pantalla se conectaba.
+
+
+@dataclass
+class _Preparado:
+    """Lo que no cambia entre balotas, con el sello que dice si sigue vigente."""
+
+    sello_cartones: tuple[int, str | None]
+    sello_formas: tuple
+    cartones: list[CartonEnJuego]
+    mascaras: Mascaras
+
+
+#: Partidas preparadas, de la menos usada a la más reciente.
+_preparados: dict[int, _Preparado] = {}
+
+#: Cuántas partidas se guardan a la vez. En una sala se juega de una en una; el
+#: tope existe para que un servidor que lleva semanas encendido no acumule las
+#: máscaras de todas las partidas de su historia.
+MAXIMO_PARTIDAS_PREPARADAS = 8
+
+
+async def _sello_de_cartones(
+    db: AsyncSession, partida_id: int
+) -> tuple[int, str | None]:
+    """Huella barata del juego de cartones: cuántos hay y la mayor de sus firmas.
+
+    Una consulta agregada sobre el índice, en vez de traerse las 5000 filas solo
+    para comprobar si cambiaron.
+
+    Va por la **firma** y no por el `id` a propósito: SQLite reutiliza los
+    identificadores borrados, así que borrar cien cartones y generar otros cien
+    devolvería exactamente el mismo `(total, max(id))` con cartones distintos, y
+    el precálculo viejo seguiría en uso decidiendo quién gana. La firma es un
+    sha256 del cartón: si el juego cambia, cambia.
+    """
+    total, mayor = (
+        await db.execute(
+            select(func.count(Carton.id), func.max(Carton.firma)).where(
+                Carton.partida_id == partida_id
+            )
+        )
+    ).one()
+    return total, mayor
+
+
+def _sello_de_formas(formas: list[FormaEnJuego]) -> tuple:
+    """Huella de las formas, incluido el patrón de cada figura.
+
+    El patrón entra a propósito: una figura del catálogo se puede editar con la
+    partida en curso, y sin él las máscaras seguirían usando el dibujo viejo sin
+    que nada lo delatara. El premio y el nombre NO entran: no afectan a las
+    máscaras y se releen enteros en cada evaluación.
+    """
+    return tuple(
+        (
+            forma.partida_figura_id,
+            forma.figura_id,
+            tuple(tuple(fila) for fila in forma.patron),
+        )
+        for forma in formas
+    )
+
+
+async def _preparar(
+    db: AsyncSession, partida_id: int, formas: list[FormaEnJuego]
+) -> _Preparado:
+    """Devuelve los cartones y las máscaras de la partida, calculándolos si hace falta."""
+    sello_cartones = await _sello_de_cartones(db, partida_id)
+    sello_formas = _sello_de_formas(formas)
+
+    guardado = _preparados.get(partida_id)
+    if (
+        guardado is not None
+        and guardado.sello_cartones == sello_cartones
+        and guardado.sello_formas == sello_formas
+    ):
+        # Se vuelve a insertar para que cuente como la más reciente.
+        _preparados[partida_id] = _preparados.pop(partida_id)
+        return guardado
+
+    # Cambiaron los cartones o las formas: el último cuadro emitido se calculó
+    # con los de antes, así que ya no vale para quien se conecte ahora.
+    _ultimo_cuadro.pop(partida_id, None)
+
+    cartones = await _cartones_de(db, partida_id)
+    preparado = _Preparado(
+        sello_cartones=sello_cartones,
+        sello_formas=sello_formas,
+        cartones=cartones,
+        mascaras=mascaras_de(cartones, formas),
+    )
+
+    _preparados.pop(partida_id, None)
+    _preparados[partida_id] = preparado
+    while len(_preparados) > MAXIMO_PARTIDAS_PREPARADAS:
+        _preparados.pop(next(iter(_preparados)))
+
+    return preparado
+
+
+# --- El último cuadro emitido, para quien se conecta -------------------------
+
+
+#: Último evento `ganadores` emitido de cada partida, ya normalizado.
+_ultimo_cuadro: dict[int, dict] = {}
+
+
+def _sin_novedad(evento: dict) -> dict:
+    """El mismo cuadro, pero sin ningún bingo marcado como nuevo.
+
+    `nuevo` significa «detectado en esta evaluación», y es lo que hace que la
+    pantalla suene una sola vez. Guardado tal cual, un jugador que se conectara
+    cinco balotas después del bingo recibiría ese `nuevo` y su cartón anunciaría
+    a gritos un bingo ajeno y viejo. Es la misma regla que ya cumple la consulta
+    por HTTP.
+    """
+    return {
+        **evento,
+        "bingos": [{**bingo, "nuevo": False} for bingo in evento["bingos"]],
+    }
+
+
+def recordar_cuadro(evento: dict) -> None:
+    """Guarda el cuadro recién emitido para servírselo a quien se conecte."""
+    partida_id = evento["partida_id"]
+    _ultimo_cuadro.pop(partida_id, None)
+    _ultimo_cuadro[partida_id] = _sin_novedad(evento)
+
+    while len(_ultimo_cuadro) > MAXIMO_PARTIDAS_PREPARADAS:
+        _ultimo_cuadro.pop(next(iter(_ultimo_cuadro)))
+
+
+def cuadro_recordado(partida_id: int) -> dict | None:
+    """El último cuadro emitido, o None si esta partida no ha emitido ninguno.
+
+    Existe para que abrir una pantalla no cueste una evaluación completa: en una
+    sala llena son cientos de jugadores conectándose a la vez, y el cuadro que
+    les corresponde es exactamente el último que se emitió.
+    """
+    return _ultimo_cuadro.get(partida_id)
+
+
+def olvidar_precalculo() -> None:
+    """Tira el precálculo de todas las partidas. Lo necesitan las pruebas.
+
+    En producción no hace falta llamarlo: el sello se da cuenta solo de que los
+    cartones o las formas cambiaron. Existe porque las pruebas comparten el
+    proceso y arrancan cada una con una base nueva donde los identificadores de
+    partida vuelven a empezar en 1, así que el precálculo de una prueba podría
+    darse por bueno en la siguiente.
+    """
+    _preparados.clear()
+    _ultimo_cuadro.clear()
 
 
 async def _registrados_de(
@@ -109,13 +278,19 @@ async def evaluar_partida(
     ultima = balotas[-1] if balotas else None
     orden_actual = ultima.orden if ultima else 0
 
+    # Las formas se releen siempre: son diez filas y llevan el premio y el
+    # nombre, que sí pueden cambiar sin que cambien las máscaras.
+    formas = await _formas_de(db, partida_id)
+    preparado = await _preparar(db, partida_id, formas)
+
     cuadro = evaluar(
-        cartones=await _cartones_de(db, partida_id),
-        formas=await _formas_de(db, partida_id),
+        cartones=preparado.cartones,
+        formas=formas,
         cantadas=cantadas,
         orden_actual=orden_actual,
         numero_actual=ultima.numero if ultima else None,
         registrados=await _registrados_de(db, partida_id),
+        mascaras=preparado.mascaras,
     )
 
     if registrar:
