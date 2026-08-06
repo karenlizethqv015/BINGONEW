@@ -10,6 +10,13 @@ interface Props {
   /** Hay un bingo recién cantado que el administrador todavía no ha atendido. */
   sinAtender: boolean
   onCerrar: () => void
+  /**
+   * Reanudar el sorteo, que se pausó solo al cantarse el bingo.
+   *
+   * Opcional a propósito: solo lo reciben las pantallas de mando. El tablero de
+   * transmisión se proyecta delante de la sala y no lleva controles.
+   */
+  onReanudar?: () => void
   className?: string
 }
 
@@ -23,12 +30,17 @@ interface Props {
  *
  * Mientras no lo atienda late en verde; al cerrarlo se queda quieto pero sigue
  * visible, porque el bingo no deja de ser cierto por haberlo leído.
+ *
+ * El sorteo se detiene solo al cantarse un bingo, así que reanudarlo es la
+ * acción natural sobre este aviso y el botón vive aquí, no perdido entre los
+ * controles de más abajo.
  */
 export function AvisoBingo({
   bingos,
   totalCartones,
   sinAtender,
   onCerrar,
+  onReanudar,
   className,
 }: Props) {
   if (bingos.length === 0) return null
@@ -52,16 +64,23 @@ export function AvisoBingo({
           </span>
         </div>
 
-        {sinAtender && (
-          <Button
-            size="sm"
-            variant="secondary"
-            onClick={onCerrar}
-            className="shrink-0"
-          >
-            Entendido
-          </Button>
-        )}
+        <div className="flex shrink-0 flex-wrap items-center gap-2">
+          {onReanudar && (
+            <span className="text-sm font-semibold">
+              El sorteo se detuvo.
+            </span>
+          )}
+          {onReanudar && (
+            <Button size="sm" variant="secondary" onClick={onReanudar}>
+              Reanudar sorteo
+            </Button>
+          )}
+          {sinAtender && (
+            <Button size="sm" variant="ghost" onClick={onCerrar}>
+              Entendido
+            </Button>
+          )}
+        </div>
       </header>
 
       <div className="divide-y divide-success/20">

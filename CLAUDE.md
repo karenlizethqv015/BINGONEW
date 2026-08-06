@@ -22,6 +22,7 @@ Aplicación web para administrar jornadas de bingo en vivo (venta de cartones vi
 
 ## Otros archivos de la raíz (léanse cuando apliquen)
 
+- `DESPLIEGUE.md` — cómo poner la demo en una URL pública, y por qué el backend sirve también el frontend (un solo origen, igual que la instalación final en la sala).
 - `PROGRESS.md` — estado real del proyecto: qué está hecho, qué sigue, y bitácora de decisiones. **Se lee al inicio de cada sesión y se actualiza al final.** Es la memoria persistente entre sesiones; nunca borrarlo ni resumirlo a la fuerza.
 - `PLAN-CLAUDE-CODE.md` — cómo trabajar el proyecto sesión por sesión (patrón "una tarea de `PROGRESS.md` = una sesión") y qué archivo de `docs/` corresponde a cada tarea de la Fase 1.
 - `SKILLS-RECOMENDADAS.md` — qué skills de Claude Code usar y cuándo. En particular: **usar modo plan antes de implementar la balotera virtual y la validación de ganadores** (son las de reglas más delicadas), y correr `review` sobre el diff antes de marcar una tarea como completa.
@@ -51,9 +52,9 @@ El detalle de fases y su estado actual vive en `PROGRESS.md` — **actualízalo 
 
 - **Backend:** FastAPI (Python), SQLAlchemy 2.0 + Alembic, Pydantic, WebSockets nativos.
 - **Frontend:** React + Vite + TypeScript + TailwindCSS. Diseño desktop-first pero razonablemente responsivo. Debe verse profesional y moderno (no un prototipo gris de wireframe) — es lo que se le muestra al cliente.
-- **Base de datos:** PostgreSQL en producción final (LAN). Para el MVP de demo desplegado en web, puede usarse Postgres gestionado (Railway/Render/Supabase) o SQLite si acelera la entrega — decisión a tomar en la sesión de scaffolding, documentar la elección en `PROGRESS.md`.
+- **Base de datos:** los dos motores vienen instalados y el que se usa lo decide `DATABASE_URL`. **SQLite** (`aiosqlite`) por defecto para desarrollo y pruebas; **PostgreSQL** (`asyncpg`) en la demo desplegada y en la instalación final en LAN. La cadena se pega tal como la dé el proveedor: se normaliza sola en `backend/app/config.py`.
 - **Tiempo real:** WebSocket nativo o socket.io-client, un endpoint por partida.
-- **Despliegue MVP demo:** frontend en Vercel/Netlify, backend en Railway/Render/Fly.io (o equivalente). La versión final de producción es Docker Compose corriendo en LAN sin internet — no confundir ambos entornos, ver `docs/06-arquitectura.md`.
+- **Despliegue MVP demo:** **una sola imagen Docker** — el backend sirve también el frontend compilado, así que todo va en un origen. No son dos servicios: separarlos obligaría a escribir el host del backend en el frontend, que es justo lo que prohíbe la regla 1 de abajo. Es además la misma forma que tendrá la instalación final en LAN. Ver `DESPLIEGUE.md`; esto corrige lo que dice `docs/06-arquitectura.md`.
 
 ### Rutas del frontend por rol
 
@@ -90,7 +91,26 @@ python -m venv .venv
 .\.venv\Scripts\python.exe -m pytest tests/test_health.py                            # un archivo
 .\.venv\Scripts\python.exe -m pytest tests/test_health.py::test_health_responde_ok    # UN SOLO TEST
 .\.venv\Scripts\python.exe -m pytest -k websocket                                    # por nombre
+.\.venv\Scripts\python.exe -m pytest -m lento -s                                     # PRUEBA DE CARGA (5000 cartones)
 ```
+
+La prueba de carga no corre con la suite normal: genera 5000 cartones y canta las
+75 balotas. El `-s` es lo que hace que imprima los tiempos reales por balota.
+
+### La suite contra PostgreSQL (desde la raíz del repositorio)
+
+```powershell
+docker compose up -d postgres
+cd backend
+$env:TEST_DATABASE_URL = "postgresql+asyncpg://bingo:bingo@localhost:5432/bingo"
+.\.venv\Scripts\python.exe -m pytest
+Remove-Item Env:\TEST_DATABASE_URL     # volver a SQLite
+```
+
+Tarda unos dos minutos y medio en vez de quince segundos, porque crea y destruye
+el esquema en cada prueba. **Vale la pena antes de tocar el despliegue**: es lo
+que descubre las diferencias entre motores aquí y no en el servidor. Si el 5432
+está ocupado, `$env:PUERTO_POSTGRES = "5433"` antes del `docker compose up`.
 
 ### Frontend (desde `frontend/`)
 
@@ -127,6 +147,8 @@ Cuatro reglas que no son evidentes leyendo el código y que cuesta caro descubri
 2. **Ningún color suelto de Tailwind.** Nada de `bg-slate-800` ni `text-yellow-400`: todo color sale de los tokens de `frontend/src/index.css` (`bg-surface`, `text-primary`, `text-success`…). Es lo que mantiene la identidad visual coherente y permite ajustarla desde un solo archivo.
 3. **Alembic solo ve los modelos importados en `backend/app/models/__init__.py`.** Si un modelo nuevo no se importa ahí, `--autogenerate` produce una migración **vacía sin dar ningún error**. Revisar siempre el archivo generado antes de aplicarlo.
 4. **Los modelos deben seguir siendo compatibles con PostgreSQL** aunque la demo corra en SQLite: tipo `JSON` genérico (nunca `JSONB`), `DateTime(timezone=True)`, y nada de SQL crudo específico de un motor. El detalle está en `backend/README.md`.
+5. **La validación de ganadores trabaja con máscaras de bits precalculadas, no recorriendo cartones.** Las salas grandes juegan con 5000 cartones: qué balotas exige cada forma sobre cada cartón se calcula **una vez por partida** y se guarda en `app/servicios/ganadores.py`, con un sello que lo invalida solo si cambian los cartones o los patrones. Si alguien vuelve a meter un `numeros_requeridos` dentro del bucle por balota, la partida pasa de 22 ms a más de 130 ms por balota y bloquea los WebSockets de toda la sala. Hay una prueba de carga que lo vigila (`pytest -m lento`).
+6. **La clave de administración (`ADMIN_CLAVE`) NO es el login de la Fase 2.** Es una sola clave compartida que protege lo que modifica; se aplica por método HTTP en `app/seguridad.py`, no ruta por ruta. Las consultas y el WebSocket quedan abiertos a propósito: `/transmision` y `/jugador` son pantallas del público. Vacía = todo abierto (desarrollo y LAN).
 
 ## Reglas de dominio que no se negocian (bingo de 75 bolas)
 
@@ -138,7 +160,7 @@ Estas reglas son las más fáciles de equivocar y las más caras de corregir des
 - Toda balota sorteada se registra en `balota_cantada` con su orden y timestamp, venga de balotera virtual o física.
 - El evento WebSocket de balota debe ser **idéntico** para fuente virtual y física: cuando se integre la balotera real, solo cambia la fuente, no el resto del sistema.
 - El sorteo termina al agotarse las 75 balotas, o cuando el administrador lo finaliza a mano.
-- **Un bingo NO detiene el sorteo:** se avisa y la partida sigue. Todas las formas juegan a la vez, así que un bingo de «línea» no debe frenar una partida en la que «cartón lleno» sigue en juego.
+- **Un bingo DETIENE el sorteo:** al detectarse un ganador la partida se **pausa sola**, para que el encargado pueda acercarse a la persona y acordar el premio. Se pausa, no se finaliza: las demás formas siguen en juego y el administrador reanuda cuando quiera. Agotar las 75 balotas manda sobre la pausa (una partida finalizada no se despausa). *(Esta regla sustituye a la contraria, vigente hasta el 2026-08-05; ver la bitácora de `PROGRESS.md`.)*
 - **Una forma ganada se cierra:** solo ganan los cartones que la completan en la MISMA balota, y comparten el premio. Quien la complete después llegó tarde. Sin esta regla, con las 75 balotas fuera todos los cartones habrían ganado todo.
 - **La casilla libre no exige ninguna balota:** una figura que la incluya exige una balota menos que celdas tiene. Una figura formada solo por la casilla libre se ignora.
 - **Quién ganó lo decide siempre el backend**, nunca el navegador: hay dinero detrás. El marcado del cartón sí se resuelve en el cliente, que es otra cosa. Detalle completo en `docs/11-avisos-y-validacion-de-ganadores.md`.

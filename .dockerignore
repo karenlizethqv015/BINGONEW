@@ -1,0 +1,25 @@
+# Lo que no debe entrar en la imagen: acelera la construcción y evita meter
+# dentro la base de datos de desarrollo o las credenciales locales.
+
+**/.venv
+**/node_modules
+**/dist
+**/__pycache__
+**/*.pyc
+**/.pytest_cache
+**/.ruff_cache
+
+# La base de datos de desarrollo. En producción se crea vacía y Alembic la
+# migra al arrancar; copiar esta sería llevarse las partidas de prueba.
+backend/*.db
+backend/*.db-journal
+
+# Credenciales y configuración local.
+**/.env
+!**/.env.example
+
+.git
+.github
+docs
+*.md
+!README.md

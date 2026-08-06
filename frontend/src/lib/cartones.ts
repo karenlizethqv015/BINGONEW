@@ -6,7 +6,7 @@ import type { MatrizCarton } from '@/lib/bingo'
 import { pedir } from '@/lib/http'
 
 /** Tope por petición que acepta el backend. */
-export const MAXIMO_POR_PETICION = 500
+export const MAXIMO_POR_PETICION = 5000
 
 export interface Carton {
   id: number
@@ -82,11 +82,25 @@ export function resumenCartones(partidaId: number): Promise<ResumenCartones> {
   return pedir<ResumenCartones>(`${base(partidaId)}/resumen`)
 }
 
+export interface CartonesGenerados {
+  cantidad: number
+  serie: string
+  desde: number
+  hasta: number
+  total_en_partida: number
+}
+
+/**
+ * Genera una tanda de cartones.
+ *
+ * Devuelve el resumen de lo creado, no los cartones: con 5000 serían varios
+ * megabytes de JSON. Para verlos se pide la primera página con `listarCartones`.
+ */
 export function generarCartones(
   partidaId: number,
   datos: { cantidad: number; serie?: string },
-): Promise<Carton[]> {
-  return pedir<Carton[]>(base(partidaId), {
+): Promise<CartonesGenerados> {
+  return pedir<CartonesGenerados>(base(partidaId), {
     method: 'POST',
     body: JSON.stringify(datos),
   })

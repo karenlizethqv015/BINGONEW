@@ -1,5 +1,6 @@
 import { Link, NavLink, Outlet } from 'react-router-dom'
 
+import { PedirClaveAdmin } from '@/components/PedirClaveAdmin'
 import { cn } from '@/lib/utils'
 
 interface Ruta {
@@ -31,15 +32,20 @@ export function Layout() {
   return (
     <div className="min-h-screen">
       <header className="border-b border-border bg-surface/70 backdrop-blur sticky top-0 z-10">
-        <div className="mx-auto flex max-w-7xl items-center gap-6 px-6 py-3">
-          <Link to="/" className="flex items-center gap-2.5">
+        <div className="mx-auto flex max-w-7xl items-center gap-3 px-4 py-3 sm:gap-6 sm:px-6">
+          <Link to="/" className="flex shrink-0 items-center gap-2.5">
             <span className="grid size-9 place-items-center rounded-full bg-primary font-bold text-primary-foreground shadow-lg shadow-primary/20">
               B
             </span>
-            <span className="text-lg font-semibold tracking-tight">Bingo</span>
+            <span className="hidden text-lg font-semibold tracking-tight sm:inline">
+              Bingo
+            </span>
           </Link>
 
-          <nav className="flex items-center gap-1">
+          {/* Se desplaza en horizontal en vez de partirse en dos filas: la
+              vista del jugador se usa desde el celular, y una cabecera que
+              crece hacia abajo le come la pantalla al cartón. */}
+          <nav className="-mx-1 flex items-center gap-1 overflow-x-auto px-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {RUTAS.map((ruta) => (
               <NavLink
                 key={ruta.to}
@@ -47,7 +53,7 @@ export function Layout() {
                 end={ruta.exacto}
                 className={({ isActive }) =>
                   cn(
-                    'rounded-md px-3 py-1.5 text-sm font-medium transition-colors',
+                    'shrink-0 rounded-md px-3 py-1.5 text-sm font-medium transition-colors',
                     isActive
                       ? 'bg-primary/15 text-primary'
                       : 'text-muted-foreground hover:bg-surface-2 hover:text-foreground',
@@ -66,9 +72,13 @@ export function Layout() {
         </div>
       </header>
 
-      <main className="mx-auto max-w-7xl px-6 py-8">
+      <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-8">
         <Outlet />
       </main>
+
+      {/* Aquí y no en cada pantalla: la clave hace falta en cualquier acción
+          que modifique la partida. Solo aparece si el servidor la exige. */}
+      <PedirClaveAdmin />
     </div>
   )
 }

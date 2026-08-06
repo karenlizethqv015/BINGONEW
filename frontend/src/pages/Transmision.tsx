@@ -144,17 +144,17 @@ export function Transmision() {
   const formas = partida?.figuras ?? []
 
   return (
-    <div className="flex min-h-screen flex-col gap-5 p-6 xl:p-8">
+    <div className="flex min-h-screen flex-col gap-4 p-4 sm:gap-5 sm:p-6 xl:p-8">
       {/* Encabezado: de qué juego se trata y si el canal está vivo */}
       <header className="flex flex-wrap items-baseline justify-between gap-x-8 gap-y-2">
-        <h1 className="text-4xl font-black tracking-tight xl:text-5xl">
+        <h1 className="text-2xl font-black tracking-tight sm:text-4xl xl:text-5xl">
           Juego{' '}
           <span className="tabular text-primary">
             {vivo.numeroConsecutivo ?? partida?.numero_consecutivo ?? '—'}
           </span>
         </h1>
 
-        <div className="flex items-center gap-6 text-xl xl:text-2xl">
+        <div className="flex items-center gap-3 text-base sm:gap-6 sm:text-xl xl:text-2xl">
           {/* Salida discreta: en la sala nadie pasa el ratón por encima, así
               que queda invisible proyectado, pero permite volver al configurar. */}
           <Link
@@ -232,14 +232,14 @@ export function Transmision() {
 
       <div className="grid flex-1 gap-5 xl:grid-cols-[minmax(0,1fr)_22rem] xl:items-start">
         {/* Tablero de los 75 números: lo que la sala mira todo el rato */}
-        <section className="rounded-xl border border-border bg-surface p-5 xl:p-6">
-          <div className="space-y-2 xl:space-y-3">
+        <section className="rounded-xl border border-border bg-surface p-3 sm:p-5 xl:p-6">
+          <div className="space-y-1.5 sm:space-y-2 xl:space-y-3">
             {RANGOS_POR_COLUMNA.map(([desde, hasta], indice) => (
-              <div key={LETRAS[indice]} className="flex items-center gap-3">
-                <span className="w-9 text-center text-3xl font-black text-primary xl:text-4xl">
+              <div key={LETRAS[indice]} className="flex items-center gap-2 sm:gap-3">
+                <span className="w-6 text-center text-xl font-black text-primary sm:w-9 sm:text-3xl xl:text-4xl">
                   {LETRAS[indice]}
                 </span>
-                <div className="grid flex-1 grid-cols-15 gap-1.5">
+                <div className="grid flex-1 grid-cols-15 gap-1 sm:gap-1.5">
                   {Array.from(
                     { length: hasta - desde + 1 },
                     (_, i) => desde + i,
@@ -251,7 +251,10 @@ export function Transmision() {
                       <span
                         key={numero}
                         className={cn(
-                          'grid aspect-square place-items-center rounded-lg text-xl font-bold tabular transition-colors duration-300 xl:text-2xl',
+                          // Se encoge en pantallas pequeñas: son 15 columnas, y
+                          // un tamaño pensado para el televisor desbordaría un
+                          // portátil. En la sala manda el `xl`.
+                          'grid aspect-square place-items-center rounded sm:rounded-lg text-[10px] font-bold tabular transition-colors duration-300 sm:text-base lg:text-xl xl:text-2xl',
                           // El último cantado va en VERDE, como pide el
                           // documento de alcance: es lo que la sala busca con
                           // la vista al oír el número.

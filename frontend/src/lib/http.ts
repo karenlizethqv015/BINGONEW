@@ -6,6 +6,23 @@
  * aparecer ningún host ni puerto escrito a mano.
  */
 
+import { CABECERA_ADMIN, FaltaClaveAdmin, claveAdmin } from '@/lib/admin'
+
+/**
+ * Se emite cuando el backend rechaza una acción por falta de clave.
+ *
+ * Es un evento y no una llamada directa porque `pedir` es una función suelta,
+ * sin acceso a los componentes: quien quiera reaccionar se suscribe. Lo hace
+ * `PedirClaveAdmin`, una sola vez, colgado del `Layout`.
+ */
+const EVENTO_FALTA_CLAVE = 'bingo:falta-clave-admin'
+
+/** Avisa cuando una petición se rechazó por falta de clave. */
+export function alFaltarClaveAdmin(escuchar: () => void): () => void {
+  window.addEventListener(EVENTO_FALTA_CLAVE, escuchar)
+  return () => window.removeEventListener(EVENTO_FALTA_CLAVE, escuchar)
+}
+
 /**
  * Convierte una respuesta de error en un mensaje legible.
  *
@@ -37,14 +54,30 @@ export async function pedir<T>(
   url: string,
   opciones?: RequestInit,
 ): Promise<T> {
+  // La clave de administración viaja en todas las peticiones si está guardada.
+  // El backend solo la exige en las que modifican, así que las pantallas del
+  // público (transmisión y jugador) funcionan igual sin ella.
+  const clave = claveAdmin()
+
   let respuesta: Response
   try {
     respuesta = await fetch(url, {
-      headers: { 'Content-Type': 'application/json' },
       ...opciones,
+      headers: {
+        'Content-Type': 'application/json',
+        ...(clave ? { [CABECERA_ADMIN]: clave } : {}),
+        ...opciones?.headers,
+      },
     })
   } catch {
     throw new Error('No se pudo contactar el backend. ¿Está corriendo uvicorn?')
+  }
+
+  // 401 se distingue del resto para que la pantalla pueda pedir la clave en vez
+  // de enseñar un error que el usuario no sabe cómo resolver.
+  if (respuesta.status === 401) {
+    window.dispatchEvent(new Event(EVENTO_FALTA_CLAVE))
+    throw new FaltaClaveAdmin()
   }
 
   if (!respuesta.ok) {

@@ -17,11 +17,36 @@ Copy-Item .env.example .env          # opcional: los valores por defecto ya sirv
 La API queda en `http://127.0.0.1:8000` y la documentación interactiva en
 `http://127.0.0.1:8000/docs`.
 
-## Base de datos: SQLite hoy, PostgreSQL después
+## Base de datos: los dos motores a la vez
 
-La demo corre sobre **SQLite** (`aiosqlite`) por velocidad de entrega; la
-instalación final en la LAN de cada sala usa **PostgreSQL**. El objetivo es que
-ese cambio sea *únicamente* cambiar `DATABASE_URL`.
+**Los dos drivers vienen instalados** y el que se usa lo decide `DATABASE_URL`:
+
+- **SQLite** (`aiosqlite`) por defecto, para desarrollo y pruebas. Arranca sin
+  levantar nada.
+- **PostgreSQL** (`asyncpg`) en la demo desplegada y en la instalación final en
+  la LAN de la sala.
+
+Cambiar de uno a otro es solo cambiar `DATABASE_URL`, y **la cadena se puede
+pegar tal como la entrega el proveedor**: `normalizar_url_de_base_de_datos`, en
+`app/config.py`, le pone el driver asíncrono si viene como `postgresql://` y le
+quita los parámetros de `libpq` (`sslmode` y compañía) que asyncpg no entiende.
+Se hace en la configuración y no en `db.py` porque `alembic/env.py` lee la misma
+variable: así quedan bien la aplicación y las migraciones de una vez.
+
+Para probar contra PostgreSQL de verdad está el `docker-compose.yml` de la raíz.
+La suite entera se puede correr contra él:
+
+```powershell
+docker compose up -d postgres
+$env:TEST_DATABASE_URL = "postgresql+asyncpg://bingo:bingo@localhost:5432/bingo"
+.\.venv\Scripts\python.exe -m pytest
+```
+
+Sin esa variable, las pruebas siguen usando SQLite en memoria y tardan segundos.
+
+El objetivo de las reglas de abajo es que ese cambio de motor no exija tocar
+ningún modelo, y hoy se cumple: pasar la demo a PostgreSQL no obligó a cambiar ni
+uno solo.
 
 Para que eso siga siendo cierto, todo modelo nuevo debe respetar estas reglas:
 
@@ -37,9 +62,15 @@ Para que eso siga siendo cierto, todo modelo nuevo debe respetar estas reglas:
 5. **`DATABASE_URL` siempre por variable de entorno**, nunca escrita en el
    código ni en `alembic.ini`.
 
-Al migrar en la Fase 2 basta con instalar `asyncpg` y definir:
+6. **Los enums van con `native_enum=False`**, es decir, guardados como texto con
+   un CHECK. SQLite no tiene ENUM, y en PostgreSQL cambiarle los valores a un
+   tipo ENUM obliga a una migración incómoda. Ver `app/models/partida.py`.
+
+Para apuntar a PostgreSQL basta con definir la variable; cualquiera de las dos
+formas vale:
 
 ```
+DATABASE_URL=postgresql://usuario:clave@servidor:5432/bingo
 DATABASE_URL=postgresql+asyncpg://usuario:clave@servidor:5432/bingo
 ```
 

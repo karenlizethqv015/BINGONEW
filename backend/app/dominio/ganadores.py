@@ -14,7 +14,13 @@ figura exige sobre ese cartón todavía no han salido. Ver `faltan_para` en
 
 from dataclasses import dataclass, field
 
-from app.dominio.bingo import Patron, faltan_para, numeros_requeridos
+from app.dominio.bingo import (
+    Patron,
+    faltan_para_mascara,
+    mascara_de,
+    numeros_de_mascara,
+    numeros_requeridos,
+)
 from app.dominio.bingo import Carton as MatrizCarton
 
 #: Hasta cuántas balotas de distancia se avisa. El administrador pidió ver los
@@ -94,6 +100,30 @@ class CartonCerca:
     numeros: list[int]
 
 
+#: Qué balotas exige cada forma sobre cada cartón, como máscara de bits:
+#: `partida_figura_id → [máscara por cartón]`, alineado con la lista de cartones.
+Mascaras = dict[int, list[int]]
+
+
+def mascaras_de(
+    cartones: list[CartonEnJuego], formas: list[FormaEnJuego]
+) -> Mascaras:
+    """Precalcula qué balotas exige cada forma sobre cada cartón.
+
+    **No depende del sorteo**, solo del cartón y de la figura, así que se
+    calcula una vez por partida y se reutiliza en las 75 balotas. Es lo que
+    permite que una sala de 5000 cartones no rehaga 50.000 conjuntos por balota;
+    quien la llama se encarga de guardarla (ver `app/servicios/ganadores.py`).
+    """
+    return {
+        forma.partida_figura_id: [
+            mascara_de(numeros_requeridos(carton.numeros, forma.patron))
+            for carton in cartones
+        ]
+        for forma in formas
+    }
+
+
 @dataclass
 class CuadroDeGanadores:
     """Foto completa del estado de ganadores de una partida."""
@@ -117,8 +147,13 @@ def evaluar(
     orden_actual: int,
     numero_actual: int | None,
     registrados: list[GanadorRegistrado] | None = None,
+    mascaras: Mascaras | None = None,
 ) -> CuadroDeGanadores:
     """Calcula quién ganó y quién está cerca, con las balotas cantadas hasta hoy.
+
+    `mascaras` es el precálculo de `mascaras_de`. Se puede omitir —y entonces se
+    hace aquí mismo—, pero durante un sorteo hay que pasarlo: rehacerlo en cada
+    balota es justo el coste que hunde una sala de 5000 cartones.
 
     `registrados` son los ganadores que ya están guardados en la base de datos.
     Hay dos fuentes distintas y no hay que mezclarlas:
@@ -135,6 +170,11 @@ def evaluar(
     reconectarse una pantalla, por ejemplo— devuelva el mismo cuadro y con la
     balota original, no con la que vaya el sorteo en ese momento.
     """
+    if mascaras is None:
+        mascaras = mascaras_de(cartones, formas)
+
+    cantadas_bits = mascara_de(cantadas)
+
     por_forma: dict[int, list[GanadorRegistrado]] = {}
     for registro in registrados or []:
         por_forma.setdefault(registro.partida_figura_id, []).append(registro)
@@ -172,9 +212,10 @@ def evaluar(
             continue
 
         ganadores: list[CartonGanador] = []
+        por_carton = mascaras[forma.partida_figura_id]
 
-        for carton in cartones:
-            requeridos = numeros_requeridos(carton.numeros, forma.patron)
+        for indice, carton in enumerate(cartones):
+            requeridos = por_carton[indice]
 
             # Una figura formada solo por la casilla libre no exige ninguna
             # balota y daría bingo a todo el mundo antes de empezar. Se ignora:
@@ -183,7 +224,7 @@ def evaluar(
             if not requeridos:
                 continue
 
-            faltan = faltan_para(requeridos, cantadas)
+            faltan = faltan_para_mascara(requeridos, cantadas_bits)
 
             if faltan == 0:
                 ganadores.append(CartonGanador(carton.id, carton.codigo))
@@ -204,7 +245,7 @@ def evaluar(
                     partida_figura_id=forma.partida_figura_id,
                     figura=forma.nombre,
                     faltan=faltan,
-                    numeros=sorted(requeridos - cantadas),
+                    numeros=numeros_de_mascara(requeridos & ~cantadas_bits),
                 )
             )
 

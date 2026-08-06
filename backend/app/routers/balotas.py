@@ -15,6 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db import get_db
 from app.dominio.bingo import TOTAL_BALOTAS, SinBalotasDisponibles, sortear_balota
+from app.dominio.ganadores import CuadroDeGanadores
 from app.models.balota_cantada import BalotaCantada
 from app.models.partida import EstadoPartida, Partida
 from app.realtime.eventos import (
@@ -25,10 +26,17 @@ from app.realtime.eventos import (
 )
 from app.realtime.manager import gestor
 from app.schemas.balota import BalotaLeer, EstadoSorteo
+from app.seguridad import SOLO_ADMIN
 from app.schemas.ganador import CuadroGanadoresLeer
-from app.servicios.ganadores import borrar_ganadores, evaluar_partida
+from app.servicios.ganadores import (
+    borrar_ganadores,
+    evaluar_partida,
+    recordar_cuadro,
+)
 
-router = APIRouter(prefix="/api/partidas/{partida_id}", tags=["balotera"])
+router = APIRouter(
+    prefix="/api/partidas/{partida_id}", tags=["balotera"], dependencies=SOLO_ADMIN
+)
 
 #: Un cerrojo por partida para serializar el sacado de balota.
 #:
@@ -83,12 +91,21 @@ async def _emitir_estado(db: AsyncSession, partida: Partida) -> None:
 
 async def _emitir_ganadores(
     db: AsyncSession, partida: Partida, *, registrar: bool
-) -> dict:
-    """Evalúa la partida y emite el cuadro de ganadores. Devuelve lo emitido."""
+) -> CuadroDeGanadores:
+    """Evalúa la partida y emite el cuadro de ganadores. Devuelve el cuadro.
+
+    Devuelve el cuadro y no el evento porque quien canta la balota necesita
+    preguntarle si hubo un bingo **nuevo**, para detener el sorteo.
+    """
     cuadro, orden = await evaluar_partida(db, partida.id, registrar=registrar)
     evento = evento_ganadores(partida, cuadro, orden)
+
+    # Guardarlo es lo que evita que cada pantalla que se conecte después tenga
+    # que reevaluar la partida entera por su cuenta.
+    recordar_cuadro(evento)
+
     await gestor.emitir(canal_de_partida(partida.id), evento)
-    return evento
+    return cuadro
 
 
 # --- Consulta ---------------------------------------------------------------
@@ -149,8 +166,9 @@ async def cantar_balota(
 ) -> BalotaCantada:
     """Saca la siguiente balota, la registra y la emite por WebSocket.
 
-    Al salir la número 75 la partida se finaliza sola: el sorteo termina cuando
-    se agotan las balotas.
+    El sorteo se detiene solo en dos casos: al salir la número 75 la partida se
+    **finaliza** (se agotaron las balotas), y al aparecer un bingo nuevo se
+    **pausa**, para que el encargado pueda atender al ganador.
     """
     async with _cerrojos[partida_id]:
         partida = await _obtener_partida_o_404(db, partida_id)
@@ -188,14 +206,24 @@ async def cantar_balota(
         # Con la balota ya guardada, mirar quién ganó y quién quedó a una o dos.
         # Va dentro del cerrojo: dos evaluaciones simultáneas leerían la misma
         # tabla de ganadores vacía y registrarían los mismos dos veces.
-        #
-        # Un bingo NO detiene el sorteo: se avisa y la partida sigue, porque
-        # todas las formas juegan a la vez y un bingo de «línea» no debe frenar
-        # una partida en la que «cartón lleno» sigue en juego. Finalizar es
-        # decisión del administrador.
-        await _emitir_ganadores(db, partida, registrar=True)
+        cuadro = await _emitir_ganadores(db, partida, registrar=True)
 
-        if partida.estado is EstadoPartida.FINALIZADA:
+        # Un bingo DETIENE el sorteo: se pausa para que el encargado pueda
+        # acercarse al ganador y acordar el premio. Reanudar es decisión suya.
+        #
+        # Basta con mirar `nuevo` para no volver a pausar en cada balota
+        # posterior: una forma ya ganada queda cerrada y sus ganadores dejan de
+        # ser nuevos, así que al reanudar el sorteo sigue sin trabarse.
+        #
+        # La condición `is EN_CURSO` protege el caso de la balota 75, donde la
+        # partida ya quedó finalizada arriba: finalizada no se despausa.
+        if partida.estado is EstadoPartida.EN_CURSO and any(
+            ganada.nuevo for ganada in cuadro.ganadas
+        ):
+            partida.estado = EstadoPartida.PAUSADA
+            await db.commit()
+
+        if partida.estado is not EstadoPartida.EN_CURSO:
             await gestor.emitir(canal, evento_estado(partida, total))
 
         return balota

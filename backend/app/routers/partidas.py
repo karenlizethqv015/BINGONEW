@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db import get_db
 from app.models.balota_cantada import BalotaCantada
+from app.seguridad import SOLO_ADMIN
 from app.models.figura import Figura
 from app.models.ganador import Ganador
 from app.models.partida import EstadoPartida, Partida
@@ -23,7 +24,9 @@ from app.schemas.partida import (
     SeleccionDeFormas,
 )
 
-router = APIRouter(prefix="/api/partidas", tags=["partidas"])
+router = APIRouter(
+    prefix="/api/partidas", tags=["partidas"], dependencies=SOLO_ADMIN
+)
 
 
 async def _balotas_de(db: AsyncSession, partida_id: int) -> list[BalotaCantada]:

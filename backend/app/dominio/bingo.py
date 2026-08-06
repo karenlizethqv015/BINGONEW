@@ -6,6 +6,7 @@ en otros módulos: si alguna cambia, debe cambiar aquí y en ningún otro lado.
 
 import hashlib
 import secrets
+from collections.abc import Iterable
 from typing import TypeAlias
 
 # --- Cuadrícula del cartón y de las figuras ---
@@ -185,6 +186,58 @@ def faltan_para(requeridos: frozenset[int], cantadas: set[int]) -> int:
     0 es bingo, 1 es «a una balota», 2 es «a dos balotas».
     """
     return len(requeridos - cantadas)
+
+
+# --- La misma cuenta, con enteros --------------------------------------------
+#
+# Una sala grande juega con 5000 cartones y diez formas: son 50.000 cuentas por
+# balota, 75 veces. Con conjuntos eso son 50.000 objetos nuevos cada vez y
+# bloquea el bucle de eventos durante décimas de segundo, con lo que se atascan
+# los WebSockets de todas las pantallas conectadas.
+#
+# Un número cabe en un bit, y las 75 balotas caben de sobra en un entero de
+# Python. Así la cuenta se convierte en un AND y un conteo de bits, que corren
+# en C. Las funciones de conjuntos de arriba se conservan: son las que explican
+# la regla y las que usan las pruebas del dominio.
+
+
+def mascara_de(numeros: Iterable[int]) -> int:
+    """Los números, como bits de un entero: el número n ocupa el bit n."""
+    mascara = 0
+    for numero in numeros:
+        mascara |= 1 << numero
+    return mascara
+
+
+def faltan_para_mascara(requeridos: int, cantadas: int) -> int:
+    """Cuántas balotas faltan. Misma cuenta que `faltan_para`, con máscaras.
+
+    `~cantadas` es negativo (los enteros de Python no tienen ancho fijo), pero
+    el AND con `requeridos`, que es positivo y finito, deja siempre un resultado
+    positivo: son justo los bits pedidos que todavía no han salido.
+    """
+    return (requeridos & ~cantadas).bit_count()
+
+
+def numeros_de_mascara(mascara: int) -> list[int]:
+    """Los números que la máscara tiene encendidos, de menor a mayor.
+
+    Hace falta para los avisos de «cerca de ganar», que enseñan al administrador
+    qué números concretos le faltan a un cartón: son uno o dos.
+
+    Da una vuelta por cada bit encendido, no una por cada número posible. La
+    diferencia importa porque esto se llama una vez por cada cartón que está
+    cerca, y en una sala de 5000 pueden ser miles en la misma balota: recorrer
+    las 75 posiciones para sacar un solo número costaba más que toda la cuenta
+    de ganadores.
+    """
+    numeros: list[int] = []
+    while mascara:
+        # `m & -m` deja solo el bit encendido más bajo.
+        bit = mascara & -mascara
+        numeros.append(bit.bit_length() - 1)
+        mascara ^= bit
+    return numeros
 
 
 def validar_carton(carton: Carton) -> None:

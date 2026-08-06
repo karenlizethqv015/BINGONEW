@@ -7,11 +7,17 @@ fastapi
 uvicorn[standard]
 
 # --- Base de datos ---
-# aiosqlite es Python puro: sin riesgo de wheels faltantes en Python 3.14.
-# Para pasar a PostgreSQL en la Fase 2 basta con agregar asyncpg y cambiar
-# DATABASE_URL — ver README.md de esta carpeta.
+# Van los dos motores a la vez, y el que se use lo decide DATABASE_URL:
+#
+#   aiosqlite  desarrollo y pruebas. Python puro, no exige levantar nada.
+#   asyncpg    la demo desplegada y la instalación final en la sala.
+#
+# Comprobado que asyncpg 0.31 trae wheel tanto para la 3.13 de la imagen de
+# Docker como para la 3.14 del entorno de desarrollo, así que no compila nada en
+# ninguno de los dos. Detalle en README.md de esta carpeta.
 sqlalchemy[asyncio]
 aiosqlite
+asyncpg
 alembic
 
 # --- Configuración y validación ---

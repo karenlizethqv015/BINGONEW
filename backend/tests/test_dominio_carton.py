@@ -5,6 +5,7 @@ prueban directamente sobre el dominio, sin pasar por la API ni la base de datos.
 """
 
 import inspect
+import secrets
 
 import pytest
 
@@ -15,9 +16,15 @@ from app.dominio.bingo import (
     LETRAS,
     RANGOS_POR_COLUMNA,
     TAMANO_CUADRICULA,
+    TOTAL_BALOTAS,
+    faltan_para,
+    faltan_para_mascara,
     firma_carton,
     generar_carton,
     letra_de_numero,
+    mascara_de,
+    numeros_de_mascara,
+    numeros_requeridos,
     validar_carton,
 )
 
@@ -177,3 +184,60 @@ def test_validar_rechaza_numero_repetido() -> None:
 def test_validar_rechaza_cuadricula_de_otro_tamano() -> None:
     with pytest.raises(ValueError, match="filas"):
         validar_carton([[1] * 5] * 4)
+
+
+# --- Máscaras de bits --------------------------------------------------------
+#
+# La validación de ganadores cuenta con máscaras para aguantar 5000 cartones,
+# pero la regla la explican las funciones de conjuntos. Las dos tienen que dar
+# siempre lo mismo: si se separan, el bingo se decide mal y nadie se entera.
+
+
+def test_la_mascara_y_el_conjunto_dan_la_misma_cuenta() -> None:
+    """La comprobación que de verdad protege el cambio a máscaras.
+
+    Se recorren cartones y figuras al azar, en todos los momentos de un sorteo,
+    comparando las dos implementaciones. Una prueba con casos escogidos a mano
+    no habría visto un fallo en, por ejemplo, la balota 75 o el conjunto vacío.
+    """
+    for _ in range(50):
+        carton = generar_carton()
+
+        # Una figura al azar, entre 1 y 25 celdas.
+        patron = [[False] * 5 for _ in range(5)]
+        for fila in range(5):
+            for columna in range(5):
+                patron[fila][columna] = secrets.randbelow(2) == 1
+
+        requeridos = numeros_requeridos(carton, patron)
+        mascara_requeridos = mascara_de(requeridos)
+
+        cantadas: set[int] = set()
+        orden = list(range(1, TOTAL_BALOTAS + 1))
+
+        # Se comprueba también con cero balotas cantadas y con las 75.
+        for numero in [None, *orden]:
+            if numero is not None:
+                cantadas.add(numero)
+
+            assert faltan_para_mascara(
+                mascara_requeridos, mascara_de(cantadas)
+            ) == faltan_para(requeridos, cantadas)
+
+
+def test_la_mascara_devuelve_los_mismos_numeros_que_el_conjunto() -> None:
+    """`numeros_de_mascara` alimenta el aviso de «te falta el 42»."""
+    for _ in range(50):
+        cuantos = 1 + secrets.randbelow(10)
+        numeros = set()
+        while len(numeros) < cuantos:
+            numeros.add(1 + secrets.randbelow(TOTAL_BALOTAS))
+
+        assert numeros_de_mascara(mascara_de(numeros)) == sorted(numeros)
+
+
+def test_la_mascara_de_nada_es_cero() -> None:
+    """El caso de la figura que solo tiene la casilla libre: no exige balotas."""
+    assert mascara_de([]) == 0
+    assert numeros_de_mascara(0) == []
+    assert faltan_para_mascara(0, mascara_de({1, 2, 3})) == 0

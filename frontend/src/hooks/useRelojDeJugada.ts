@@ -28,8 +28,18 @@ export function useRelojDeJugada(iniciadaEn: string | null): string | null {
   const arranque = new Date(iniciadaEn).getTime()
   if (Number.isNaN(arranque)) return null
 
-  const segundos = Math.max(0, Math.floor((ahora - arranque) / 1000))
-  const minutos = Math.floor(segundos / 60)
+  const total = Math.max(0, Math.floor((ahora - arranque) / 1000))
 
-  return `${String(minutos).padStart(2, '0')}:${String(segundos % 60).padStart(2, '0')}`
+  const horas = Math.floor(total / 3600)
+  const minutos = Math.floor((total % 3600) / 60)
+  const segundos = total % 60
+
+  const dosCifras = (valor: number) => String(valor).padStart(2, '0')
+
+  // Pasada la hora se muestran las horas aparte. Una partida no debería durar
+  // tanto, pero una que se quede abierta sí: sin esto, un juego olvidado de un
+  // día para otro marcaba «2504:43», un número que no dice nada.
+  return horas > 0
+    ? `${horas}:${dosCifras(minutos)}:${dosCifras(segundos)}`
+    : `${dosCifras(minutos)}:${dosCifras(segundos)}`
 }

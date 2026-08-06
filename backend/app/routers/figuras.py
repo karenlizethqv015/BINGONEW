@@ -11,10 +11,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db import get_db
 from app.models.figura import Figura, TipoFigura
+from app.seguridad import SOLO_ADMIN
 from app.models.partida_figura import PartidaFigura
 from app.schemas.figura import FiguraActualizar, FiguraCrear, FiguraLeer
 
-router = APIRouter(prefix="/api/figuras", tags=["figuras"])
+router = APIRouter(
+    prefix="/api/figuras", tags=["figuras"], dependencies=SOLO_ADMIN
+)
 
 
 async def _obtener_o_404(db: AsyncSession, figura_id: int) -> Figura:

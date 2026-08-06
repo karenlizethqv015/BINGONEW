@@ -1,0 +1,65 @@
+# PostgreSQL y la aplicación, juntos.
+#
+# Sirve para dos cosas a la vez:
+#
+#   1. Probar en el equipo contra el motor de verdad antes de subir nada, en vez
+#      de descubrir las diferencias entre SQLite y PostgreSQL en el servidor.
+#   2. Es **la forma que tendrá la instalación final en la sala**: el mismo
+#      Dockerfile con su base al lado, corriendo en el PC del local en vez de en
+#      la nube.
+#
+# Levantar:
+#   docker compose up --build          ->  http://localhost:8000
+#
+# Parar y borrar también los datos:
+#   docker compose down -v
+#
+# En el día a día NO hace falta: para desarrollar están uvicorn y Vite con
+# SQLite, que arrancan al instante (ver la sección Comandos de CLAUDE.md).
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: bingo
+      POSTGRES_PASSWORD: bingo
+      POSTGRES_DB: bingo
+    volumes:
+      - datos-postgres:/var/lib/postgresql/data
+    # Se publica el puerto para poder conectarse con un cliente y mirar las
+    # tablas. En la sala esto se puede quitar: solo lo necesita la aplicación,
+    # que llega por la red interna de compose.
+    #
+    # El puerto del equipo se puede cambiar sin tocar el archivo, porque el 5432
+    # suele estar ocupado por otro PostgreSQL:
+    #   $env:PUERTO_POSTGRES = "5433"; docker compose up
+    ports:
+      - "${PUERTO_POSTGRES:-5432}:5432"
+    # Sin esto, la aplicación arrancaría antes de que la base acepte conexiones.
+    # El reintento del Dockerfile la salvaría igual, pero es mejor no empezar
+    # cada arranque con un error en los logs.
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bingo -d bingo"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+
+  bingo:
+    build: .
+    environment:
+      # `postgres` es el nombre del servicio de arriba: compose lo resuelve por
+      # su red interna. La contraseña en claro es aceptable porque esto es
+      # desarrollo; en la sala va por variable de entorno.
+      DATABASE_URL: postgresql+asyncpg://bingo:bingo@postgres:5432/bingo
+      # Sin clave: en una red local no hay de quién protegerse, y pedirla en
+      # cada acción durante las pruebas solo estorba. Ver app/seguridad.py.
+      ADMIN_CLAVE: ""
+    # Igual que arriba: `$env:PUERTO_APP = "8001"` si el 8000 está ocupado.
+    ports:
+      - "${PUERTO_APP:-8000}:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  datos-postgres:

@@ -206,6 +206,11 @@ export function Admin() {
             totalCartones={ganadores.total_cartones_ganadores}
             sinAtender={bingoSinAtender}
             onCerrar={() => setBingoSinAtender(false)}
+            onReanudar={
+              vivo.estado === 'pausada'
+                ? () => void transicion('reanudar')
+                : undefined
+            }
           />
 
           {/* Cifras de un vistazo */}
