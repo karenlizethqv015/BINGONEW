@@ -98,29 +98,75 @@ usuarios, ni contraseñas por persona, ni sesiones. Es una tranca para la demo.
 Sin definirla, todo queda abierto, que es lo correcto en desarrollo y en la LAN
 de la sala.
 
-### Ojo con la base de datos
+### La base de datos: PostgreSQL
 
-La demo usa SQLite en un archivo, y **en Railway y Render el disco se borra en
-cada despliegue**: las partidas, figuras y cartones desaparecen.
+La demo arranca sobre SQLite en un archivo, y **en Railway y Render el disco se
+borra en cada despliegue**: las partidas, figuras y cartones desaparecen. Para
+que sobrevivan, lo recomendado es **crear un PostgreSQL en el mismo proveedor**.
 
-Para que sobrevivan, en Railway:
+Además de conservar los datos, quita de en medio el problema de los volúmenes:
+la imagen corre como usuario sin privilegios y los volúmenes se montan como
+root, así que montar uno para el archivo de SQLite puede fallar por permisos en
+el primer arranque. Con PostgreSQL no hay ningún archivo que persistir. Es
+también la ruta que la Fase 2 iba a tomar igualmente, y la forma que tendrá la
+instalación final en la sala.
 
-1. *Settings* → *Volumes* → *New Volume*, con punto de montaje `/data`.
-2. *Variables* → `DATABASE_URL` = `sqlite+aiosqlite:////data/bingo.db`
-   (**cuatro barras**: tres del esquema más la de la ruta absoluta).
-3. Volver a desplegar. Las migraciones crean el esquema solas al arrancar.
+#### Paso a paso en Railway
 
-> **Si el despliegue falla justo después de montar el volumen**, mira el log: lo
-> más probable es un error de permisos al abrir `/data/bingo.db`. La imagen corre
-> como un usuario sin privilegios (`USER bingo`) y los volúmenes se montan como
-> root. Se arregla dándole permiso a la carpeta desde el panel del proveedor, o
-> pasando a PostgreSQL, que no tiene este problema.
+1. En el proyecto: **New → Database → Add PostgreSQL**. Aparece como un servicio
+   propio, al lado del de la aplicación.
+2. En el servicio **de la aplicación** —no en el de la base— → *Variables* →
+   añadir `DATABASE_URL` con el valor `${{Postgres.DATABASE_URL}}`.
+3. Volver a desplegar. En los logs deben verse las migraciones aplicándose una a
+   una: el arranque hace `alembic upgrade head` solo.
+4. Comprobarlo de verdad: entrar, crear una figura, **volver a desplegar** y ver
+   que la figura sigue ahí. Es justo lo que fallaba antes.
 
-La otra ruta es **crear un PostgreSQL** en el mismo proveedor y poner su cadena
-en `DATABASE_URL`. No exige tocar código: los modelos se escribieron desde el
-principio para funcionar igual en los dos motores (tipo `JSON` genérico y nunca
-`JSONB`, `DateTime(timezone=True)`, nada de SQL específico de un motor). Es la
-ruta que la Fase 2 va a tomar de todas formas.
+> **El paso 2 es el que se salta todo el mundo.** Railway no comparte las
+> variables entre servicios: crear la base no basta. Sin esa referencia la
+> aplicación no da ningún error — simplemente sigue escribiendo en su SQLite
+> efímero, y los datos vuelven a desaparecer en el despliegue siguiente.
+>
+> `Postgres` es el nombre que Railway le pone al servicio. Si lo renombraste, la
+> referencia lleva el nombre nuevo.
+
+Si tenías un volumen montado para `/data/bingo.db`, ya se puede quitar junto con
+su `DATABASE_URL`. `ADMIN_CLAVE` no tiene nada que ver y se queda como esté.
+
+#### La cadena se pega tal cual
+
+No hace falta editarla. Railway (y Render, y Neon, y Heroku) entregan una URL
+pensada para clientes síncronos, y la aplicación la arregla sola al leerla
+(`normalizar_url_de_base_de_datos`, en `backend/app/config.py`): le pone el
+driver `asyncpg` y le quita los parámetros de `libpq` como `sslmode`, que
+`asyncpg` no entiende y que si no provocan un `TypeError` desconcertante, sin
+mencionar en ningún momento que el problema está en la URL.
+
+Los modelos ya eran compatibles con los dos motores desde la Fase 0 (tipo `JSON`
+genérico y nunca `JSONB`, `DateTime(timezone=True)`, enums guardados como texto,
+nada de SQL específico de un motor), así que no hubo que tocar ninguno.
+
+#### Probarlo antes en el equipo
+
+Merece la pena correrlo contra PostgreSQL de verdad antes de subir nada:
+
+```powershell
+docker compose up --build      # http://localhost:8000
+```
+
+Y pasar la suite entera contra ese mismo motor, que es lo que de verdad dice que
+la aplicación se comporta igual en los dos:
+
+```powershell
+docker compose up -d postgres
+cd backend
+$env:TEST_DATABASE_URL = "postgresql+asyncpg://bingo:bingo@localhost:5432/bingo"
+.\.venv\Scripts\python.exe -m pytest
+```
+
+Tarda bastante más que contra SQLite, porque crea y destruye el esquema en cada
+prueba. Para el trabajo del día a día no hace falta: sin `TEST_DATABASE_URL` la
+suite sigue usando SQLite en memoria y tarda segundos.
 
 ## Enseñarle la demo a otra persona
 

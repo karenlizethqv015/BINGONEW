@@ -32,8 +32,14 @@ CARTONES = 5000
 #: coste crece con el producto de las dos cifras.
 FORMAS = 10
 
-#: Techo por balota. Es deliberadamente holgado —unas cinco veces lo medido— y
-#: no una medida de rendimiento: sirve para que una regresión gorda salte.
+#: Techo por balota. Es deliberadamente holgado y no una medida de rendimiento:
+#: sirve para que una regresión gorda salte.
+#:
+#: Medido: ~22 ms contra SQLite en memoria. Contra PostgreSQL sale mucho peor
+#: (~200 ms), pero **ese número no es el de producción**: las pruebas usan
+#: `NullPool` (ver conftest.py), que abre una conexión TCP nueva en cada uso. La
+#: aplicación de verdad, con su pool, hace la misma partida a ~75 ms por balota
+#: incluyendo HTTP. Con una balota cada cinco segundos, sobra por mucho.
 MAXIMO_MS_POR_BALOTA = 400
 
 

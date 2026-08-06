@@ -52,7 +52,7 @@ El detalle de fases y su estado actual vive en `PROGRESS.md` — **actualízalo 
 
 - **Backend:** FastAPI (Python), SQLAlchemy 2.0 + Alembic, Pydantic, WebSockets nativos.
 - **Frontend:** React + Vite + TypeScript + TailwindCSS. Diseño desktop-first pero razonablemente responsivo. Debe verse profesional y moderno (no un prototipo gris de wireframe) — es lo que se le muestra al cliente.
-- **Base de datos:** PostgreSQL en producción final (LAN). Para el MVP de demo desplegado en web, puede usarse Postgres gestionado (Railway/Render/Supabase) o SQLite si acelera la entrega — decisión a tomar en la sesión de scaffolding, documentar la elección en `PROGRESS.md`.
+- **Base de datos:** los dos motores vienen instalados y el que se usa lo decide `DATABASE_URL`. **SQLite** (`aiosqlite`) por defecto para desarrollo y pruebas; **PostgreSQL** (`asyncpg`) en la demo desplegada y en la instalación final en LAN. La cadena se pega tal como la dé el proveedor: se normaliza sola en `backend/app/config.py`.
 - **Tiempo real:** WebSocket nativo o socket.io-client, un endpoint por partida.
 - **Despliegue MVP demo:** **una sola imagen Docker** — el backend sirve también el frontend compilado, así que todo va en un origen. No son dos servicios: separarlos obligaría a escribir el host del backend en el frontend, que es justo lo que prohíbe la regla 1 de abajo. Es además la misma forma que tendrá la instalación final en LAN. Ver `DESPLIEGUE.md`; esto corrige lo que dice `docs/06-arquitectura.md`.
 
@@ -96,6 +96,21 @@ python -m venv .venv
 
 La prueba de carga no corre con la suite normal: genera 5000 cartones y canta las
 75 balotas. El `-s` es lo que hace que imprima los tiempos reales por balota.
+
+### La suite contra PostgreSQL (desde la raíz del repositorio)
+
+```powershell
+docker compose up -d postgres
+cd backend
+$env:TEST_DATABASE_URL = "postgresql+asyncpg://bingo:bingo@localhost:5432/bingo"
+.\.venv\Scripts\python.exe -m pytest
+Remove-Item Env:\TEST_DATABASE_URL     # volver a SQLite
+```
+
+Tarda unos dos minutos y medio en vez de quince segundos, porque crea y destruye
+el esquema en cada prueba. **Vale la pena antes de tocar el despliegue**: es lo
+que descubre las diferencias entre motores aquí y no en el servidor. Si el 5432
+está ocupado, `$env:PUERTO_POSTGRES = "5433"` antes del `docker compose up`.
 
 ### Frontend (desde `frontend/`)
 
