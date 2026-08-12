@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db import get_db
 from app.models.balota_cantada import BalotaCantada
-from app.seguridad import SOLO_ADMIN
+from app.seguridad import SOLO_OPERADOR
 from app.models.figura import Figura
 from app.models.ganador import Ganador
 from app.models.partida import EstadoPartida, Partida
@@ -21,11 +21,12 @@ from app.schemas.partida import (
     PartidaActualizar,
     PartidaCrear,
     PartidaLeer,
+    PartidaVenta,
     SeleccionDeFormas,
 )
 
 router = APIRouter(
-    prefix="/api/partidas", tags=["partidas"], dependencies=SOLO_ADMIN
+    prefix="/api/partidas", tags=["partidas"], dependencies=SOLO_OPERADOR
 )
 
 
@@ -111,6 +112,32 @@ async def actualizar_partida(
         partida.precio_carton = datos.precio_carton
     if datos.duracion_segundos_entre_balota is not None:
         partida.duracion_segundos_entre_balota = datos.duracion_segundos_entre_balota
+
+    await db.commit()
+    await db.refresh(partida)
+
+    await gestor.emitir(
+        canal_de_partida(partida.id),
+        evento_sincronizacion(partida, await _balotas_de(db, partida_id)),
+    )
+
+    return partida
+
+
+@router.put("/{partida_id}/venta", response_model=PartidaLeer)
+async def cambiar_venta(
+    partida_id: int, datos: PartidaVenta, db: AsyncSession = Depends(get_db)
+) -> Partida:
+    """Abre o cierra la venta de cartones — el «bombillo» de `/transmision`.
+
+    Es independiente del estado del sorteo: se puede cerrar la venta con la
+    partida todavía pendiente o en curso, y no bloquea ni afecta a cantar
+    balotas. Se emite por WebSocket porque el bombillo de transmisión lo lee
+    del mismo canal en tiempo real que todo lo demás.
+    """
+    partida = await _obtener_o_404(db, partida_id)
+
+    partida.venta_abierta = datos.venta_abierta
 
     await db.commit()
     await db.refresh(partida)

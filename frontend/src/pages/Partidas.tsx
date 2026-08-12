@@ -244,17 +244,17 @@ export function Partidas() {
                         ) : (
                           <>
                             <Button asChild size="sm">
-                              <Link to={`/admin/partidas/${partida.id}`}>
+                              <Link to={`/operador/partidas/${partida.id}`}>
                                 Configurar formas
                               </Link>
                             </Button>
                             <Button asChild size="sm" variant="outline">
-                              <Link to={`/admin/partidas/${partida.id}/cartones`}>
+                              <Link to={`/operador/partidas/${partida.id}/cartones`}>
                                 Cartones
                               </Link>
                             </Button>
                             <Button asChild size="sm" variant="success">
-                              <Link to={`/admin/partidas/${partida.id}/balotera`}>
+                              <Link to={`/operador/partidas/${partida.id}/balotera`}>
                                 Balotera
                               </Link>
                             </Button>

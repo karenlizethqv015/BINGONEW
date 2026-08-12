@@ -41,6 +41,7 @@ export interface EventoEstado {
   tipo: 'estado'
   partida_id: number
   estado: EstadoPartida
+  venta_abierta: boolean
   total_cantadas: number
   restantes: number
 }
@@ -50,6 +51,7 @@ export interface EventoSincronizacion {
   partida_id: number
   numero_consecutivo: number
   estado: EstadoPartida
+  venta_abierta: boolean
   duracion_segundos_entre_balota: number
   /** Cuándo arrancó el sorteo (ISO), o null si todavía no ha empezado. */
   iniciada_en: string | null

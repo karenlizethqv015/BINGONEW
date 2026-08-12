@@ -83,6 +83,12 @@ class PartidaActualizar(BaseModel):
     duracion_segundos_entre_balota: int | None = Field(default=None, ge=1, le=300)
 
 
+class PartidaVenta(BaseModel):
+    """Enciende o apaga el «bombillo» de venta de cartones."""
+
+    venta_abierta: bool
+
+
 class PartidaLeer(BaseModel):
     """Partida con sus formas de ganar."""
 
@@ -93,6 +99,7 @@ class PartidaLeer(BaseModel):
     estado: EstadoPartida
     precio_carton: int
     duracion_segundos_entre_balota: int
+    venta_abierta: bool
     creado_en: datetime
     iniciada_en: datetime | None
     finalizada_en: datetime | None

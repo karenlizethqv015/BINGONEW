@@ -128,7 +128,7 @@ export function Transmision() {
           {error ?? 'Todavía no hay ninguna partida creada.'}
         </p>
         <Link
-          to="/admin/partidas"
+          to="/operador/partidas"
           className="text-lg text-primary underline-offset-4 hover:underline"
         >
           Ir a partidas
@@ -158,7 +158,7 @@ export function Transmision() {
           {/* Salida discreta: en la sala nadie pasa el ratón por encima, así
               que queda invisible proyectado, pero permite volver al configurar. */}
           <Link
-            to="/admin/partidas"
+            to="/operador/partidas"
             className="text-base text-muted-foreground/25 transition-opacity hover:text-muted-foreground"
           >
             ← salir

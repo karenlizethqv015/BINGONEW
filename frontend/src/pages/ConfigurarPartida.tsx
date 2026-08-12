@@ -136,7 +136,7 @@ export function ConfigurarPartida() {
           {error ?? 'No se encontró la partida.'}
         </p>
         <Button asChild variant="outline" size="sm">
-          <Link to="/admin/partidas">Volver a partidas</Link>
+          <Link to="/operador/partidas">Volver a partidas</Link>
         </Button>
       </div>
     )
@@ -146,7 +146,7 @@ export function ConfigurarPartida() {
     <div className="space-y-6">
       <header className="space-y-1">
         <Link
-          to="/admin/partidas"
+          to="/operador/partidas"
           className="text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
         >
           ← Partidas

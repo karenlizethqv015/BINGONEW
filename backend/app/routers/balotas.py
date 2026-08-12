@@ -26,7 +26,7 @@ from app.realtime.eventos import (
 )
 from app.realtime.manager import gestor
 from app.schemas.balota import BalotaLeer, EstadoSorteo
-from app.seguridad import SOLO_ADMIN
+from app.seguridad import SOLO_OPERADOR
 from app.schemas.ganador import CuadroGanadoresLeer
 from app.servicios.ganadores import (
     borrar_ganadores,
@@ -35,7 +35,7 @@ from app.servicios.ganadores import (
 )
 
 router = APIRouter(
-    prefix="/api/partidas/{partida_id}", tags=["balotera"], dependencies=SOLO_ADMIN
+    prefix="/api/partidas/{partida_id}", tags=["balotera"], dependencies=SOLO_OPERADOR
 )
 
 #: Un cerrojo por partida para serializar el sacado de balota.

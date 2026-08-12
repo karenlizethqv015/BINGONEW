@@ -12,7 +12,7 @@ la Fase 3 y están explícitamente fuera de alcance (ver CLAUDE.md).
 from datetime import datetime
 from enum import Enum
 
-from sqlalchemy import DateTime, Enum as SQLEnum, Integer, func
+from sqlalchemy import Boolean, DateTime, Enum as SQLEnum, Integer, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db import Base
@@ -71,6 +71,14 @@ class Partida(Base):
     duracion_segundos_entre_balota: Mapped[int] = mapped_column(
         Integer, nullable=False, default=5
     )
+
+    #: Si todavía se están vendiendo cartones para esta partida.
+    #:
+    #: Es independiente del `estado` del sorteo: una partida puede seguir
+    #: `pendiente` o `en_curso` con la venta ya cerrada. Lo enciende y apaga el
+    #: operador desde su panel; el "bombillo" de `/transmision` es de solo
+    #: lectura sobre este campo.
+    venta_abierta: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
 
     creado_en: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()

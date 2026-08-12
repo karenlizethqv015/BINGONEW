@@ -174,7 +174,7 @@ export function CartonesPartida() {
     <div className="space-y-6">
       <header className="space-y-1">
         <Link
-          to="/admin/partidas"
+          to="/operador/partidas"
           className="text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
         >
           ← Partidas

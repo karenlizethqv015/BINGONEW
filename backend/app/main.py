@@ -27,6 +27,7 @@ from app.realtime.eventos import (
 )
 from app.realtime.manager import gestor
 from app.routers import balotas, cartones, figuras, health, partidas
+from app.seguridad import CABECERA_ROL_REQUERIDO
 from app.servicios.ganadores import cuadro_recordado, evaluar_partida
 
 logging.basicConfig(level=logging.INFO)
@@ -58,6 +59,11 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    # Sin esto, el navegador descarta la cabecera `X-Clave-Requerida` de las
+    # respuestas 401 en el caso cross-origin (no hace falta con el proxy de
+    # Vite, que es same-origin, pero sí si algún día el frontend habla con el
+    # backend desde otro puerto sin proxy).
+    expose_headers=[CABECERA_ROL_REQUERIDO],
 )
 
 app.include_router(health.router)

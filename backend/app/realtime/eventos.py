@@ -59,6 +59,7 @@ def evento_estado(partida: Partida, total_cantadas: int) -> dict[str, Any]:
         "tipo": "estado",
         "partida_id": partida.id,
         "estado": partida.estado.value,
+        "venta_abierta": partida.venta_abierta,
         "total_cantadas": total_cantadas,
         "restantes": TOTAL_BALOTAS - total_cantadas,
     }
@@ -79,6 +80,7 @@ def evento_sincronizacion(
         "partida_id": partida.id,
         "numero_consecutivo": partida.numero_consecutivo,
         "estado": partida.estado.value,
+        "venta_abierta": partida.venta_abierta,
         "duracion_segundos_entre_balota": partida.duracion_segundos_entre_balota,
         # Para el reloj de la jugada del panel de administración. Va aquí y no
         # en una petición aparte porque este evento es la foto completa de la
