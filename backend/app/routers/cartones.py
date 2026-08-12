@@ -20,12 +20,12 @@ from app.schemas.carton import (
     GenerarCartones,
     ResumenCartones,
 )
-from app.seguridad import SOLO_ADMIN
+from app.seguridad import SOLO_OPERADOR
 
 router = APIRouter(
     prefix="/api/partidas/{partida_id}/cartones",
     tags=["cartones"],
-    dependencies=SOLO_ADMIN,
+    dependencies=SOLO_OPERADOR,
 )
 
 #: Cuántas veces se reintenta si un cartón generado ya existía en la partida.

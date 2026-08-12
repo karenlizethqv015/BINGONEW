@@ -75,27 +75,34 @@ Ninguna es obligatoria para la demo. Las que existen:
 | ---------------- | ----------------------------------------- | ------------------------------ |
 | `PORT`           | Lo pone el proveedor solo                 | `8000`                         |
 | `DATABASE_URL`   | Dónde vive la base de datos               | SQLite en `./bingo.db`         |
-| `ADMIN_CLAVE`    | Protege lo que modifica la partida        | vacía (todo abierto)           |
+| `ADMIN_CLAVE`    | Protege el catálogo de figuras            | vacía (todo abierto)           |
+| `OPERADOR_CLAVE` | Protege partidas, balotera y cartones     | vacía (todo abierto)           |
 | `FRONTEND_DIST`  | Dónde está el frontend compilado          | lo fija el `Dockerfile`        |
 | `APP_VERSION`    | Se ve en `/api/health`                    | `0.1.0`                        |
 
-### La clave de administración
+### Las claves de administración y operador
 
-Con la URL pública, cualquiera que tenga el enlace puede entrar a `/admin` y
-reiniciar el sorteo en mitad de la demo. `ADMIN_CLAVE` lo evita:
+Con la URL pública, cualquiera que tenga el enlace puede entrar a `/admin` o
+`/operador` y tocar el catálogo o reiniciar el sorteo en mitad de la demo.
+`ADMIN_CLAVE` y `OPERADOR_CLAVE` lo evitan, una por rol:
 
-1. En Railway, *Variables* → `ADMIN_CLAVE` = lo que se quiera.
-2. La primera vez que se intente cambiar algo, la aplicación la pide y la guarda
-   en el navegador. Hay un «Salir de administración» abajo a la derecha.
+1. En Railway, *Variables* → `ADMIN_CLAVE` = lo que se quiera, `OPERADOR_CLAVE`
+   = otra cosa distinta (no tiene que ser la misma; de hecho es mejor que no lo
+   sea, para que un vendedor con la clave de operador no pueda tocar el
+   catálogo de figuras).
+2. La primera vez que se intente cambiar algo, la aplicación pide la clave que
+   corresponda y la guarda en el navegador. Hay un «Salir de administración» y
+   un «Salir de operación» abajo a la derecha, uno encima del otro si las dos
+   están puestas.
 
-**Las pantallas del público no la necesitan.** `/transmision` y `/jugador` solo
+**Las pantallas del público no las necesitan.** `/transmision` y `/jugador` solo
 consultan, y el canal en tiempo real está abierto: el jefe puede abrir su cartón
 sin que nadie le dé ninguna clave. Eso es a propósito y hay una prueba que lo
 fija.
 
-Que quede claro qué es y qué no: **no es el login de la Fase 2**. No hay
-usuarios, ni contraseñas por persona, ni sesiones. Es una tranca para la demo.
-Sin definirla, todo queda abierto, que es lo correcto en desarrollo y en la LAN
+Que quede claro qué son y qué no: **no son el login de la Fase 2**. No hay
+usuarios, ni contraseñas por persona, ni sesiones. Son una tranca para la demo.
+Sin definirlas, todo queda abierto, que es lo correcto en desarrollo y en la LAN
 de la sala.
 
 ### La base de datos: PostgreSQL

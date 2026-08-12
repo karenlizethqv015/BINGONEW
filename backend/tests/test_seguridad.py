@@ -1,10 +1,11 @@
-"""Pruebas de la tranca de administración.
+"""Pruebas de las trancas de administración y operación.
 
-Lo que hay que garantizar son dos cosas de la demo pública, y tirar de cualquiera
-de las dos la rompe:
+Lo que hay que garantizar son tres cosas de la demo pública, y tirar de
+cualquiera de las tres la rompe:
 
-1. quien no traiga la clave no puede tocar la partida, y
-2. **el tablero de la sala y el cartón del jugador siguen entrando sin nada**,
+1. quien no traiga la clave correspondiente no puede tocar lo que protege,
+2. la clave de un rol no sirve para lo que protege el otro rol, y
+3. **el tablero de la sala y el cartón del jugador siguen entrando sin nada**,
    porque son pantallas del público y no hay a quién pedirle una clave.
 """
 
@@ -13,18 +14,28 @@ from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from app.config import settings
-from app.seguridad import CABECERA
+from app.seguridad import CABECERA_ADMIN, CABECERA_OPERADOR
 
 CLAVE = "clave-de-la-demo"
+CABECERA = CABECERA_OPERADOR  # las partidas/cartones/balotera son del operador
 
 
 @pytest.fixture
 def con_clave():
-    """Enciende la clave de administración durante la prueba.
+    """Enciende la clave de operador durante la prueba.
 
     Se cambia el objeto de configuración ya construido, no la variable de
     entorno: `get_settings` está cacheada y no volvería a leer el entorno.
     """
+    anterior = settings.operador_clave
+    settings.operador_clave = CLAVE
+    yield
+    settings.operador_clave = anterior
+
+
+@pytest.fixture
+def con_clave_admin():
+    """Enciende la clave de administración durante la prueba."""
     anterior = settings.admin_clave
     settings.admin_clave = CLAVE
     yield
@@ -154,3 +165,42 @@ async def test_el_websocket_de_la_partida_no_pide_clave(
             assert ws.receive_json()["tipo"] == "sincronizacion"
     finally:
         app.dependency_overrides.pop(get_sesion_factory, None)
+
+
+# --- Cada clave protege solo su rol -------------------------------------------
+
+
+async def test_la_clave_de_operador_no_sirve_para_figuras(
+    cliente: AsyncClient, con_clave: None, con_clave_admin: None
+) -> None:
+    """El operador no puede tocar el catálogo de figuras con su propia clave."""
+    respuesta = await cliente.post(
+        "/api/figuras",
+        json={"nombre": "Línea", "patron": [[True] * 5] + [[False] * 5] * 4},
+        headers={CABECERA_OPERADOR: CLAVE},
+    )
+
+    assert respuesta.status_code == 401
+
+
+async def test_la_clave_de_admin_no_sirve_para_partidas(
+    cliente: AsyncClient, con_clave: None, con_clave_admin: None
+) -> None:
+    """El administrador no puede iniciar una partida con su propia clave."""
+    respuesta = await cliente.post(
+        "/api/partidas", json={}, headers={CABECERA_ADMIN: CLAVE}
+    )
+
+    assert respuesta.status_code == 401
+
+
+async def test_la_clave_de_admin_si_protege_figuras(
+    cliente: AsyncClient, con_clave_admin: None
+) -> None:
+    respuesta = await cliente.post(
+        "/api/figuras",
+        json={"nombre": "Línea", "patron": [[True] * 5] + [[False] * 5] * 4},
+        headers={CABECERA_ADMIN: CLAVE},
+    )
+
+    assert respuesta.status_code == 201

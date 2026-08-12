@@ -35,6 +35,8 @@ export interface Partida {
   estado: EstadoPartida
   precio_carton: number
   duracion_segundos_entre_balota: number
+  /** El «bombillo»: si todavía se están vendiendo cartones. Independiente del sorteo. */
+  venta_abierta: boolean
   creado_en: string
   iniciada_en: string | null
   finalizada_en: string | null
@@ -79,6 +81,14 @@ export function actualizarPartida(
 
 export function eliminarPartida(id: number): Promise<void> {
   return pedir<void>(`${BASE}/${id}`, { method: 'DELETE' })
+}
+
+/** Abre o cierra el «bombillo» de venta de cartones. */
+export function cambiarVenta(id: number, ventaAbierta: boolean): Promise<Partida> {
+  return pedir<Partida>(`${BASE}/${id}/venta`, {
+    method: 'PUT',
+    body: JSON.stringify({ venta_abierta: ventaAbierta }),
+  })
 }
 
 /** Reemplaza por completo las formas de ganar de una partida. */

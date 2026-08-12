@@ -2,7 +2,7 @@
 
 > Claude Code debe actualizar este archivo cada vez que complete una tarea: marcar el checkbox, agregar fecha y una línea breve de qué se hizo o qué decisión se tomó. No se debe reordenar la prioridad de fases sin que la usuaria lo pida.
 
-Última actualización: 2026-08-05 (Fase 1 completa y desplegada en Railway; primera tanda de correcciones sobre el sistema en uso: el bingo detiene el sorteo, escala a 5000 cartones, y clave de administración).
+Última actualización: 2026-08-12 (rol operador separado del de administrador — primera de cuatro tareas pedidas por el cliente tras ver la demo).
 
 ---
 
@@ -43,6 +43,15 @@ Salieron del primer contacto real con la aplicación desplegada. No son funciona
 - [x] **QR del cartón** — enlace y código QR por cartón, para que el jugador entre escaneando desde el celular. — 2026-08-05.
 - [x] **PostgreSQL en vez del volumen** — driver `asyncpg`, normalización de la cadena de conexión y `docker-compose.yml` para probarlo en local. — 2026-08-05. Sustituye a la idea del volumen persistente, que arrastraba un riesgo de permisos. **Las 178 pruebas pasan contra PostgreSQL real.** Pasos de Railway en `DESPLIEGUE.md`.
 - [ ] **Crear el PostgreSQL en Railway** — es configuración del panel, no código; los pasos están en `DESPLIEGUE.md`. Lo que no hay que saltarse: añadir `DATABASE_URL = ${{Postgres.DATABASE_URL}}` **en el servicio de la aplicación**.
+
+## Fase 1.6 — Ajustes pedidos por el cliente tras ver la demo
+
+El cliente vio la demo desplegada y pidió cuatro cambios antes de seguir. No son la lista original de la Fase 1: van en ramas `cambios-cliente-N-slug` sobre `develop`, y se mezclan a `main` como un lote cuando estén las cuatro. Ver el plan completo en la sesión del 2026-08-12 (rol operador, resumen condensado de cerca-de-ganar, rediseño de transmisión, banco global de cartones).
+
+- [x] **1. Rol operador** — partidas, balotera y cartones pasan a un rol operador aparte del administrador (que se queda con el catálogo de figuras). — 2026-08-12. Segunda clave compartida `OPERADOR_CLAVE`, mismo mecanismo que `ADMIN_CLAVE` (**sigue sin ser el login de la Fase 2**). El backend distingue las dos con `SOLO_ADMIN`/`SOLO_OPERADOR` en `app/seguridad.py`, y cada 401 lleva la cabecera `X-Clave-Requerida` (`admin` u `operador`) para que el frontend sepa qué diálogo abrir sin adivinarlo del mensaje — `pedir()` manda las dos claves guardadas en cada petición y cada tranca del backend ignora la que no es suya. Rutas nuevas: `/operador` (antes vivía en `/admin`) con partidas/balotera/cartones; `/admin` se recortó a solo el catálogo de figuras. De paso se agregó el campo `Partida.venta_abierta` (el «bombillo» que pidió el cliente para la tarea #3) con su endpoint `PUT /api/partidas/{id}/venta`, porque toca el mismo modelo y el mismo router. 4 pruebas nuevas de backend (185 en total).
+- [ ] **2. Resumen condensado de cerca-de-ganar** — en la balotera, un conteo por forma («Cartones a una balota de ganar: N») en vez de la lista detallada de cartones.
+- [ ] **3. Rediseño de transmisión** — pantalla completa sin scroll, orden de bloques pedido (tablero, carrusel de formas, video de cámara, últimas 5 balotas, contador N/75), bombillo de venta abierta/cerrada.
+- [ ] **4. Banco global de cartones** — los 5000 cartones se generan una sola vez y se reutilizan en todas las partidas futuras, con QR impreso en el propio cartón en formato imprimible.
 
 ## Fase 2 — Después de aprobado el MVP
 
@@ -212,3 +221,9 @@ Salieron del primer contacto real con la aplicación desplegada. No son funciona
 - 2026-07-31 — **Verificar por API no sustituye probar la interfaz.** La tarea #5 se dio por buena con 7 comprobaciones de punta a punta que seguían un cartón real balota a balota, y aun así la pantalla estaba rota de la forma más visible posible: el botón principal no hacía nada. La lógica de datos era correcta; la del componente no, y ningún script que hable con el backend puede ver eso. **Para las tareas #6, #7 y #8, que también son pantallas en tiempo real, hay que abrir la vista y pulsar los botones antes de marcar la tarea como completa** — sobre todo en cualquier pantalla con estado que se sincronice con la URL o con `localStorage`, que es donde vivía este fallo.
 
 - 2026-07-30 — **Aviso de seguridad de `react-router` que se decidió NO atender:** `npm audit` reporta `GHSA-qwww-vcr4-c8h2` (severidad alta) en `react-router` 7.18.2. Aplica solo al **modo RSC** con server actions; esta aplicación es una SPA puramente de cliente, así que no la afecta. Además, la versión instalada es la última publicada y la corrección que sugiere npm (7.11.0) es *anterior*. Revisar cuando salga una versión parcheada.
+
+- 2026-08-12 — **La clave de operador se resolvió como una segunda clave compartida, no como login adelantado de la Fase 2.** El cliente pidió separar "administrador" de "operador" ya, no cuando llegue el login real. Adelantar usuarios/contraseñas habría violado la regla del proyecto de no tocar auth real antes de aprobar toda la Fase 1, y era más trabajo del que el pedido necesitaba: el mismo mecanismo de `ADMIN_CLAVE` (clave única compartida, sin sesiones) sirve igual con dos claves y dos alcances.
+
+- 2026-08-12 — **Los 401 llevan una cabecera `X-Clave-Requerida` (`admin`/`operador`) en vez de mandar la clave según de dónde viene la llamada.** La alternativa —que cada función de `lib/*.ts` le dijera a `pedir()` qué clave adjuntar— habría tocado los ~18 sitios que llaman `pedir()` en todo el frontend. Con la cabecera, `pedir()` simplemente manda las dos claves guardadas en cada petición (cada tranca del backend solo mira la suya) y decide qué diálogo abrir leyendo la respuesta, sin tocar ni un solo `lib/partidas.ts`/`balotas.ts`/`cartones.ts`/`figuras.ts` existente.
+
+- 2026-08-12 — **`Partida.venta_abierta` (el «bombillo») se agregó en la misma rama que el rol operador**, aunque su interfaz (el ícono verde/rojo en `/transmision`) es trabajo de la tarea #3. Se adelantó porque toca el mismo modelo `Partida` y el mismo router `partidas.py` que el resto de esta rama, y separar el campo de su endpoint en dos ramas distintas solo habría creado una dependencia cruzada más frágil. El control para encenderlo/apagarlo ya vive en `/operador`; a `/transmision` le falta solo pintarlo (tarea #3).

@@ -1,6 +1,7 @@
 import { Link, NavLink, Outlet } from 'react-router-dom'
 
 import { PedirClaveAdmin } from '@/components/PedirClaveAdmin'
+import { PedirClaveOperador } from '@/components/PedirClaveOperador'
 import { cn } from '@/lib/utils'
 
 interface Ruta {
@@ -11,7 +12,7 @@ interface Ruta {
   /**
    * Resalta el enlace solo con coincidencia exacta. Hace falta en las rutas que
    * son prefijo de otras (`/admin` lo es de todas), pero NO en las que tienen
-   * subrutas propias: estando en `/admin/partidas/3` queremos que "Partidas"
+   * subrutas propias: estando en `/operador/partidas/3` queremos que "Partidas"
    * siga resaltado.
    */
   exacto?: boolean
@@ -21,7 +22,8 @@ interface Ruta {
 const RUTAS: Ruta[] = [
   { to: '/admin', etiqueta: 'Administración', exacto: true },
   { to: '/admin/figuras', etiqueta: 'Figuras' },
-  { to: '/admin/partidas', etiqueta: 'Partidas' },
+  { to: '/operador', etiqueta: 'Operador', exacto: true },
+  { to: '/operador/partidas', etiqueta: 'Partidas' },
   { to: '/transmision', etiqueta: 'Transmisión' },
   { to: '/jugador', etiqueta: 'Jugador' },
   { to: '/vendedor', etiqueta: 'Vendedor', fase2: true },
@@ -79,6 +81,7 @@ export function Layout() {
       {/* Aquí y no en cada pantalla: la clave hace falta en cualquier acción
           que modifique la partida. Solo aparece si el servidor la exige. */}
       <PedirClaveAdmin />
+      <PedirClaveOperador />
     </div>
   )
 }

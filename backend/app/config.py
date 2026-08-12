@@ -121,6 +121,15 @@ class Settings(BaseSettings):
     # En la demo desplegada se define la variable de entorno ADMIN_CLAVE.
     admin_clave: str = ""
 
+    # Clave única y compartida que protege lo que MODIFICA partidas, balotera
+    # y cartones — el trabajo del operador de la sala.
+    #
+    # Es el mismo mecanismo que `admin_clave` (no el login de la Fase 2), pero
+    # con su propio alcance: el administrador ya no necesita esta clave para
+    # su trabajo (figuras y ajustes básicos), y el operador no necesita la de
+    # administración. Igual que `admin_clave`, vacía significa todo abierto.
+    operador_clave: str = ""
+
 
 @lru_cache
 def get_settings() -> Settings:

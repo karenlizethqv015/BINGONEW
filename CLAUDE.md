@@ -60,7 +60,8 @@ El detalle de fases y su estado actual vive en `PROGRESS.md` — **actualízalo 
 
 Convención fija, no inventar otras en cada sesión:
 
-- `/admin` — panel de administración de la partida (Fase 1 sin login).
+- `/admin` — catálogo de figuras y ajustes básicos del juego (Fase 1 sin login). Protegido por `ADMIN_CLAVE`.
+- `/operador` — control de la jornada: partidas, balotera y cartones (Fase 1 sin login). Protegido por `OPERADOR_CLAVE`, una clave distinta de la de administración — ver la regla 6 de dominio más abajo.
 - `/transmision` — pantalla pública para proyectar en la sala. **Sin login**, solo lectura, se alimenta del mismo WebSocket que emite la balotera.
 - `/jugador` — cartón(es) del jugador con marcado automático (Fase 1 sin login; login por cédula en Fase 2).
 - `/vendedor` — módulo de ventas. **Fase 2**, no implementar todavía.
@@ -148,7 +149,7 @@ Cuatro reglas que no son evidentes leyendo el código y que cuesta caro descubri
 3. **Alembic solo ve los modelos importados en `backend/app/models/__init__.py`.** Si un modelo nuevo no se importa ahí, `--autogenerate` produce una migración **vacía sin dar ningún error**. Revisar siempre el archivo generado antes de aplicarlo.
 4. **Los modelos deben seguir siendo compatibles con PostgreSQL** aunque la demo corra en SQLite: tipo `JSON` genérico (nunca `JSONB`), `DateTime(timezone=True)`, y nada de SQL crudo específico de un motor. El detalle está en `backend/README.md`.
 5. **La validación de ganadores trabaja con máscaras de bits precalculadas, no recorriendo cartones.** Las salas grandes juegan con 5000 cartones: qué balotas exige cada forma sobre cada cartón se calcula **una vez por partida** y se guarda en `app/servicios/ganadores.py`, con un sello que lo invalida solo si cambian los cartones o los patrones. Si alguien vuelve a meter un `numeros_requeridos` dentro del bucle por balota, la partida pasa de 22 ms a más de 130 ms por balota y bloquea los WebSockets de toda la sala. Hay una prueba de carga que lo vigila (`pytest -m lento`).
-6. **La clave de administración (`ADMIN_CLAVE`) NO es el login de la Fase 2.** Es una sola clave compartida que protege lo que modifica; se aplica por método HTTP en `app/seguridad.py`, no ruta por ruta. Las consultas y el WebSocket quedan abiertos a propósito: `/transmision` y `/jugador` son pantallas del público. Vacía = todo abierto (desarrollo y LAN).
+6. **Las claves de administración y operador (`ADMIN_CLAVE`, `OPERADOR_CLAVE`) NO son el login de la Fase 2.** Son dos claves compartidas independientes que protegen lo que modifica, cada una con su alcance: `ADMIN_CLAVE` el catálogo de figuras (`figuras.py`), `OPERADOR_CLAVE` partidas, balotera y cartones (`partidas.py`, `balotas.py`, `cartones.py`). Se aplican por método HTTP en `app/seguridad.py`, no ruta por ruta. Las consultas y el WebSocket quedan abiertos a propósito: `/transmision` y `/jugador` son pantallas del público. Vacías = todo abierto (desarrollo y LAN). El frontend manda las dos claves guardadas en cada petición (`lib/http.ts`); el backend responde en qué cabecera (`X-Clave-Requerida`) hacía falta cuál, así el frontend no tiene que adivinar del mensaje de error qué diálogo abrir.
 
 ## Reglas de dominio que no se negocian (bingo de 75 bolas)
 

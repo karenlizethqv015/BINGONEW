@@ -7,20 +7,34 @@
  */
 
 import { CABECERA_ADMIN, FaltaClaveAdmin, claveAdmin } from '@/lib/admin'
+import { CABECERA_OPERADOR, FaltaClaveOperador, claveOperador } from '@/lib/operador'
 
 /**
- * Se emite cuando el backend rechaza una acción por falta de clave.
+ * Se emiten cuando el backend rechaza una acción por falta de clave.
  *
- * Es un evento y no una llamada directa porque `pedir` es una función suelta,
- * sin acceso a los componentes: quien quiera reaccionar se suscribe. Lo hace
- * `PedirClaveAdmin`, una sola vez, colgado del `Layout`.
+ * Son eventos y no una llamada directa porque `pedir` es una función suelta,
+ * sin acceso a los componentes: quien quiera reaccionar se suscribe. Lo hacen
+ * `PedirClaveAdmin` y `PedirClaveOperador`, colgados del `Layout`.
+ *
+ * `pedir` manda las dos claves guardadas en cada petición (cada tranca del
+ * backend solo mira la suya), y el backend responde cuál hacía falta en la
+ * cabecera `X-Clave-Requerida` — así se sabe cuál de los dos diálogos abrir
+ * sin tener que adivinarlo del texto del mensaje.
  */
-const EVENTO_FALTA_CLAVE = 'bingo:falta-clave-admin'
+const EVENTO_FALTA_CLAVE_ADMIN = 'bingo:falta-clave-admin'
+const EVENTO_FALTA_CLAVE_OPERADOR = 'bingo:falta-clave-operador'
+const CABECERA_ROL_REQUERIDO = 'X-Clave-Requerida'
 
-/** Avisa cuando una petición se rechazó por falta de clave. */
+/** Avisa cuando una petición se rechazó por falta de la clave de administración. */
 export function alFaltarClaveAdmin(escuchar: () => void): () => void {
-  window.addEventListener(EVENTO_FALTA_CLAVE, escuchar)
-  return () => window.removeEventListener(EVENTO_FALTA_CLAVE, escuchar)
+  window.addEventListener(EVENTO_FALTA_CLAVE_ADMIN, escuchar)
+  return () => window.removeEventListener(EVENTO_FALTA_CLAVE_ADMIN, escuchar)
+}
+
+/** Avisa cuando una petición se rechazó por falta de la clave de operador. */
+export function alFaltarClaveOperador(escuchar: () => void): () => void {
+  window.addEventListener(EVENTO_FALTA_CLAVE_OPERADOR, escuchar)
+  return () => window.removeEventListener(EVENTO_FALTA_CLAVE_OPERADOR, escuchar)
 }
 
 /**
@@ -54,10 +68,12 @@ export async function pedir<T>(
   url: string,
   opciones?: RequestInit,
 ): Promise<T> {
-  // La clave de administración viaja en todas las peticiones si está guardada.
-  // El backend solo la exige en las que modifican, así que las pantallas del
-  // público (transmisión y jugador) funcionan igual sin ella.
-  const clave = claveAdmin()
+  // Las dos claves viajan en todas las peticiones si están guardadas. Cada
+  // tranca del backend solo mira la suya, así que mandar la que no aplica no
+  // hace nada; y las pantallas del público (transmisión y jugador) funcionan
+  // igual sin ninguna, porque el backend solo las exige en lo que modifica.
+  const admin = claveAdmin()
+  const operador = claveOperador()
 
   let respuesta: Response
   try {
@@ -65,7 +81,8 @@ export async function pedir<T>(
       ...opciones,
       headers: {
         'Content-Type': 'application/json',
-        ...(clave ? { [CABECERA_ADMIN]: clave } : {}),
+        ...(admin ? { [CABECERA_ADMIN]: admin } : {}),
+        ...(operador ? { [CABECERA_OPERADOR]: operador } : {}),
         ...opciones?.headers,
       },
     })
@@ -76,7 +93,11 @@ export async function pedir<T>(
   // 401 se distingue del resto para que la pantalla pueda pedir la clave en vez
   // de enseñar un error que el usuario no sabe cómo resolver.
   if (respuesta.status === 401) {
-    window.dispatchEvent(new Event(EVENTO_FALTA_CLAVE))
+    if (respuesta.headers.get(CABECERA_ROL_REQUERIDO) === 'operador') {
+      window.dispatchEvent(new Event(EVENTO_FALTA_CLAVE_OPERADOR))
+      throw new FaltaClaveOperador()
+    }
+    window.dispatchEvent(new Event(EVENTO_FALTA_CLAVE_ADMIN))
     throw new FaltaClaveAdmin()
   }
 

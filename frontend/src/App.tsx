@@ -7,6 +7,7 @@ import { CartonesPartida } from '@/pages/CartonesPartida'
 import { ConfigurarPartida } from '@/pages/ConfigurarPartida'
 import { Figuras } from '@/pages/Figuras'
 import { Inicio } from '@/pages/Inicio'
+import { Operador } from '@/pages/Operador'
 import { Partidas } from '@/pages/Partidas'
 import { Jugador } from '@/pages/Jugador'
 import { Transmision } from '@/pages/Transmision'
@@ -32,10 +33,11 @@ export default function App() {
           <Route index element={<Inicio />} />
           <Route path="/admin" element={<Admin />} />
           <Route path="/admin/figuras" element={<Figuras />} />
-          <Route path="/admin/partidas" element={<Partidas />} />
-          <Route path="/admin/partidas/:id" element={<ConfigurarPartida />} />
-          <Route path="/admin/partidas/:id/cartones" element={<CartonesPartida />} />
-          <Route path="/admin/partidas/:id/balotera" element={<Balotera />} />
+          <Route path="/operador" element={<Operador />} />
+          <Route path="/operador/partidas" element={<Partidas />} />
+          <Route path="/operador/partidas/:id" element={<ConfigurarPartida />} />
+          <Route path="/operador/partidas/:id/cartones" element={<CartonesPartida />} />
+          <Route path="/operador/partidas/:id/balotera" element={<Balotera />} />
           <Route path="/jugador" element={<Jugador />} />
           <Route path="/vendedor" element={<Vendedor />} />
           {/* Cualquier ruta desconocida vuelve a la portada. */}

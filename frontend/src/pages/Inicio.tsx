@@ -26,12 +26,19 @@ interface Vista {
 
 const VISTAS: Vista[] = [
   {
-    to: '/admin',
-    titulo: 'Administración',
+    to: '/operador',
+    titulo: 'Operador',
     quien: 'Para quien dirige la jornada',
     descripcion:
       'Arma la partida, canta las balotas y sigue en vivo el recaudo, los premios y quién va ganando.',
     destacada: true,
+  },
+  {
+    to: '/admin',
+    titulo: 'Administración',
+    quien: 'Para quien define las reglas',
+    descripcion:
+      'El catálogo de figuras: las formas de ganar que después se eligen por partida.',
   },
   {
     to: '/transmision',
@@ -170,7 +177,7 @@ export function Inicio() {
           </Link>
           , crear una{' '}
           <Link
-            to="/admin/partidas"
+            to="/operador/partidas"
             className="text-primary underline-offset-4 hover:underline"
           >
             partida

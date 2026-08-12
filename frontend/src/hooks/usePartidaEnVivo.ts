@@ -10,6 +10,8 @@ export type EstadoConexion = 'conectando' | 'conectado' | 'desconectado'
 export interface PartidaEnVivo {
   conexion: EstadoConexion
   estado: EstadoPartida | null
+  /** El «bombillo»: si todavía se están vendiendo cartones. */
+  ventaAbierta: boolean | null
   numeroConsecutivo: number | null
   duracionEntreBalotas: number | null
   /** Cuándo arrancó el sorteo (ISO), para el reloj de la jugada. */
@@ -32,6 +34,7 @@ export interface PartidaEnVivo {
 const ESTADO_INICIAL: PartidaEnVivo = {
   conexion: 'conectando',
   estado: null,
+  ventaAbierta: null,
   numeroConsecutivo: null,
   duracionEntreBalotas: null,
   iniciadaEn: null,
@@ -129,6 +132,7 @@ function aplicar(previo: PartidaEnVivo, evento: EventoPartida): PartidaEnVivo {
       return {
         conexion: 'conectado',
         estado: evento.estado,
+        ventaAbierta: evento.venta_abierta,
         numeroConsecutivo: evento.numero_consecutivo,
         duracionEntreBalotas: evento.duracion_segundos_entre_balota,
         iniciadaEn: evento.iniciada_en,
@@ -165,6 +169,7 @@ function aplicar(previo: PartidaEnVivo, evento: EventoPartida): PartidaEnVivo {
       return {
         ...previo,
         estado: evento.estado,
+        ventaAbierta: evento.venta_abierta,
         totalCantadas: evento.total_cantadas,
         restantes: evento.restantes,
         // Reiniciar el sorteo deja la partida pendiente y sin balotas.
