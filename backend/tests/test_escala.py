@@ -99,20 +99,25 @@ async def test_una_sala_de_5000_cartones_aguanta_un_sorteo_completo(
     assert generados.status_code == 201, generados.text
     assert generados.json()["cantidad"] == CARTONES
 
-    # --- Cantar las 75 ---
+    # --- Cantar hasta que termine ---
+    #
+    # Con 10 formas y 5000 cartones es virtualmente seguro que las diez se
+    # ganen bastante antes de la balota 75: la partida se finaliza sola en
+    # cuanto se gana la última (regla de "todos los premios ganados"), así que
+    # no hay que esperar llegar a TOTAL_BALOTAS para medir el costo real.
     await cliente.post(f"/api/partidas/{partida}/iniciar")
 
     inicio = time.perf_counter()
     sacadas = await cantar_todas(partida)
     segundos_sorteo = time.perf_counter() - inicio
 
-    assert sacadas == TOTAL_BALOTAS
+    assert 0 < sacadas <= TOTAL_BALOTAS
 
-    ms_por_balota = segundos_sorteo * 1000 / TOTAL_BALOTAS
+    ms_por_balota = segundos_sorteo * 1000 / sacadas
     print(
         f"\n{CARTONES} cartones x {FORMAS} formas"
         f"\n  generar:  {segundos_generar:.1f} s"
-        f"\n  sorteo:   {segundos_sorteo:.1f} s"
+        f"\n  sorteo:   {segundos_sorteo:.1f} s, {sacadas} balotas"
         f"  ({ms_por_balota:.0f} ms por balota, con base de datos incluida)"
     )
 

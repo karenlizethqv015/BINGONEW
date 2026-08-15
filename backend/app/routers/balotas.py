@@ -166,9 +166,11 @@ async def cantar_balota(
 ) -> BalotaCantada:
     """Saca la siguiente balota, la registra y la emite por WebSocket.
 
-    El sorteo se detiene solo en dos casos: al salir la número 75 la partida se
-    **finaliza** (se agotaron las balotas), y al aparecer un bingo nuevo se
-    **pausa**, para que el encargado pueda atender al ganador.
+    El sorteo se detiene en tres casos: al salir la número 75 la partida se
+    **finaliza** (se agotaron las balotas), al ganarse la última forma que
+    quedaba en juego también se **finaliza** (ya no hay nada más que jugar), y
+    en cualquier otro bingo se **pausa**, para que el encargado pueda atender
+    al ganador y decida cuándo reanudar.
     """
     async with _cerrojos[partida_id]:
         partida = await _obtener_partida_o_404(db, partida_id)
@@ -220,7 +222,17 @@ async def cantar_balota(
         if partida.estado is EstadoPartida.EN_CURSO and any(
             ganada.nuevo for ganada in cuadro.ganadas
         ):
-            partida.estado = EstadoPartida.PAUSADA
+            # Si esta balota ganó la última forma que quedaba, ya no hay nada
+            # más que jugar: se finaliza en vez de pausar, para no dejar un
+            # «reanudar» que llevaría a un sorteo sin ninguna forma en juego.
+            # `partida.figuras` vacía no cuenta como "todo ganado" — es que no
+            # se configuró ningún premio, caso distinto que no debe finalizar
+            # la partida sola.
+            if partida.figuras and len(cuadro.ganadas) >= len(partida.figuras):
+                partida.estado = EstadoPartida.FINALIZADA
+                partida.finalizada_en = datetime.now(timezone.utc)
+            else:
+                partida.estado = EstadoPartida.PAUSADA
             await db.commit()
 
         if partida.estado is not EstadoPartida.EN_CURSO:

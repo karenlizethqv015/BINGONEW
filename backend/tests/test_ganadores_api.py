@@ -125,8 +125,11 @@ async def _provocar_un_bingo(
     seguir cantando después falla por quedarse sin balotas —no por lo que
     pretendía comprobar—. Pasó, y costó encontrarlo.
 
-    Deja la partida **pausada**: el bingo detiene el sorteo, que es justo el
-    estado en que el administrador ve el aviso y va a atender al ganador.
+    Deja la partida **pausada** si todavía queda alguna otra forma sin ganar
+    (el bingo detiene el sorteo, que es justo el estado en que el
+    administrador ve el aviso y va a atender al ganador), o **finalizada** si
+    la que se acaba de ganar era la única forma en juego — ver
+    `test_la_ultima_forma_ganada_finaliza_en_vez_de_pausar`.
     """
     await _cantar_numeros(sesion_factory, partida_id, [1, 2, 3, 4, 5])
 
@@ -238,7 +241,11 @@ async def test_un_sorteo_completo_registra_exactamente_los_ganadores_correctos(
     )
     await cliente.post(f"/api/partidas/{partida}/iniciar")
 
-    assert await cantar_todas(partida) == 75
+    # No necesariamente las 75: con las dos formas configuradas, la partida
+    # se finaliza sola en cuanto se gana la segunda (ver la regla de "todos
+    # los premios ganados"), que casi siempre cae antes de agotar el sorteo.
+    sacadas = await cantar_todas(partida)
+    assert 0 < sacadas <= 75
 
     balotas = (await cliente.get(f"/api/partidas/{partida}/balotas")).json()
     orden_balotas = [b["numero"] for b in balotas]
@@ -254,18 +261,22 @@ async def test_un_sorteo_completo_registra_exactamente_los_ganadores_correctos(
         assert bingo["orden_balota"] == posicion, nombre
         assert bingo["numero_balota"] == orden_balotas[posicion - 1], nombre
 
-    # Con las 75 fuera ya no queda nadie «cerca»: todo está ganado.
+    # Las dos formas quedaron cerradas: ya no queda nadie «cerca».
     assert cuadro["cerca"] == []
 
 
 async def test_cantar_no_registra_dos_veces_al_mismo_ganador(
     cliente: AsyncClient, sesion_factory: async_sessionmaker, cantar_todas
 ) -> None:
-    """La evaluación corre en CADA balota; sin cuidado, un ganador se repetiría."""
+    """La evaluación corre en CADA balota; sin cuidado, un ganador se repetiría.
+
+    Una sola forma: la partida se finaliza sola en cuanto se gana (regla de
+    "todos los premios ganados"), antes de llegar a la balota 75.
+    """
     partida = await _preparar(cliente, sesion_factory, {"Línea": PRIMERA_FILA})
     await cliente.post(f"/api/partidas/{partida}/iniciar")
 
-    assert await cantar_todas(partida) == 75
+    await cantar_todas(partida)
 
     async with sesion_factory() as sesion:
         guardados = (await sesion.execute(select(Ganador))).scalars().all()
@@ -277,11 +288,15 @@ async def test_cantar_no_registra_dos_veces_al_mismo_ganador(
 async def test_quien_completa_una_forma_mas_tarde_no_se_registra(
     cliente: AsyncClient, sesion_factory: async_sessionmaker, cantar_todas
 ) -> None:
-    """A-3 tiene una primera fila distinta, así que gana «Línea» después que A-1 y A-2."""
+    """A-3 tiene una primera fila distinta, así que gana «Línea» después que A-1 y A-2.
+
+    Una sola forma: la partida se finaliza sola en cuanto se gana, con A-3
+    todavía sin completarla — es justo lo que prueba el caso.
+    """
     partida = await _preparar(cliente, sesion_factory, {"Línea": PRIMERA_FILA})
     await cliente.post(f"/api/partidas/{partida}/iniciar")
 
-    assert await cantar_todas(partida) == 75
+    await cantar_todas(partida)
 
     balotas = (await cliente.get(f"/api/partidas/{partida}/balotas")).json()
     posicion, codigos = _ganadores_esperados(
@@ -293,8 +308,8 @@ async def test_quien_completa_una_forma_mas_tarde_no_se_registra(
 
     assert registrados == codigos
     assert len(registrados) < 3, (
-        "los tres cartones completan la línea antes de la balota 75; "
-        "solo deben quedar los de la primera"
+        "A-1 y A-2 completan la línea antes que A-3; "
+        "solo deben quedar registrados los de la primera"
     )
 
 
@@ -326,8 +341,14 @@ async def test_tras_reanudar_el_mismo_bingo_no_vuelve_a_pausar(
 
     Lo que lo evita es la regla de «forma cerrada»: una forma ya ganada tiene
     ganadores registrados, así que deja de producir ganadores nuevos.
+
+    Con dos formas en juego y solo una ganada: la partida se pausa, no se
+    finaliza (todavía queda «Segunda» por jugar) — así se prueba el reanudar
+    de verdad, y no el caso en que ya no quedaba nada que jugar.
     """
-    partida = await _preparar(cliente, sesion_factory, {"Línea": PRIMERA_FILA})
+    partida = await _preparar(
+        cliente, sesion_factory, {"Línea": PRIMERA_FILA, "Segunda": SEGUNDA_FILA}
+    )
     await cliente.post(f"/api/partidas/{partida}/iniciar")
     await _provocar_un_bingo(cliente, sesion_factory, partida)
 
@@ -372,6 +393,50 @@ async def test_un_bingo_en_la_ultima_balota_finaliza_y_no_pausa(
     assert sorteo["restantes"] == 0
 
 
+async def test_la_ultima_forma_ganada_finaliza_en_vez_de_pausar(
+    cliente: AsyncClient, sesion_factory: async_sessionmaker
+) -> None:
+    """Ganada la única forma en juego, ya no queda nada que jugar.
+
+    Distinto del caso de la balota 75 (agotar el sorteo): aquí sobran 69
+    balotas por cantar, pero da igual — sin formas vigentes no tiene sentido
+    seguir. Se finaliza en la misma balota que produce el bingo, sin pasar
+    por «pausada» primero.
+    """
+    partida = await _preparar(cliente, sesion_factory, {"Línea": PRIMERA_FILA})
+    await cliente.post(f"/api/partidas/{partida}/iniciar")
+
+    cuadro = await _provocar_un_bingo(cliente, sesion_factory, partida)
+    assert cuadro["bingos"], "la única forma debía quedar ganada"
+
+    sorteo = (await cliente.get(f"/api/partidas/{partida}/sorteo")).json()
+    assert sorteo["estado"] == "finalizada"
+    assert sorteo["restantes"] > 0, "no se agotaron las balotas, se acabaron las formas"
+
+    # No hay «reanudar» posible: no queda nada que jugar.
+    assert (await cliente.post(f"/api/partidas/{partida}/reanudar")).status_code == 409
+    assert (await cliente.post(f"/api/partidas/{partida}/balotas")).status_code == 409
+
+
+async def test_una_partida_sin_formas_no_se_autofinaliza_al_cantar(
+    cliente: AsyncClient, sesion_factory: async_sessionmaker
+) -> None:
+    """«Ninguna forma configurada» no es «todas las formas ganadas».
+
+    Sin esta distinción, toda partida sin formas seleccionadas se finalizaría
+    sola en la primera balota (`len(cuadro.ganadas) >= len(partida.figuras)`
+    sería `0 >= 0`, verdadero). El guard de `partida.figuras` evita ese caso.
+    """
+    partida_id = (await cliente.post("/api/partidas", json={})).json()["id"]
+    await cliente.post(f"/api/partidas/{partida_id}/iniciar")
+
+    respuesta = await cliente.post(f"/api/partidas/{partida_id}/balotas")
+    assert respuesta.status_code == 201
+
+    sorteo = (await cliente.get(f"/api/partidas/{partida_id}/sorteo")).json()
+    assert sorteo["estado"] == "en_curso"
+
+
 async def test_consultar_el_cuadro_nunca_dice_que_un_bingo_es_nuevo(
     cliente: AsyncClient, sesion_factory: async_sessionmaker
 ) -> None:
@@ -381,8 +446,13 @@ async def test_consultar_el_cuadro_nunca_dice_que_un_bingo_es_nuevo(
     siempre después de que el ganador quedó registrado, así que para ella el
     bingo nunca es nuevo — el aviso fresco viaja por el WebSocket, y eso se
     comprueba en `test_ganadores_ws.py`.
+
+    Dos formas en juego para que quede pausada y no finalizada: la prueba
+    necesita reanudar y seguir cantando después del bingo.
     """
-    partida = await _preparar(cliente, sesion_factory, {"Línea": PRIMERA_FILA})
+    partida = await _preparar(
+        cliente, sesion_factory, {"Línea": PRIMERA_FILA, "Segunda": SEGUNDA_FILA}
+    )
     await cliente.post(f"/api/partidas/{partida}/iniciar")
 
     cuadro = await _provocar_un_bingo(cliente, sesion_factory, partida)
@@ -425,8 +495,14 @@ async def test_reiniciar_el_sorteo_borra_los_ganadores(
 async def test_no_se_pueden_cambiar_las_formas_con_ganadores_registrados(
     cliente: AsyncClient, sesion_factory: async_sessionmaker
 ) -> None:
-    """Reemplazarlas borraría los ganadores en cascada y en silencio."""
-    partida = await _preparar(cliente, sesion_factory, {"Línea": PRIMERA_FILA})
+    """Reemplazarlas borraría los ganadores en cascada y en silencio.
+
+    Dos formas en juego para que quede pausada: la prueba comprueba el mensaje
+    del bloqueo por ganadores, distinto del que da una partida ya finalizada.
+    """
+    partida = await _preparar(
+        cliente, sesion_factory, {"Línea": PRIMERA_FILA, "Segunda": SEGUNDA_FILA}
+    )
     await cliente.post(f"/api/partidas/{partida}/iniciar")
     await _provocar_un_bingo(cliente, sesion_factory, partida)
 
