@@ -9,21 +9,20 @@ interface Ruta {
   etiqueta: string
   /** Marca las vistas que todavía son de la Fase 2. */
   fase2?: boolean
-  /**
-   * Resalta el enlace solo con coincidencia exacta. Hace falta en las rutas que
-   * son prefijo de otras (`/admin` lo es de todas), pero NO en las que tienen
-   * subrutas propias: estando en `/operador/partidas/3` queremos que "Partidas"
-   * siga resaltado.
-   */
-  exacto?: boolean
 }
 
-/** Rutas por rol. La convención está fijada en CLAUDE.md. */
+/**
+ * Rutas por rol. La convención está fijada en CLAUDE.md.
+ *
+ * Solo el panel de cada rol, no sus subrutas: "Figuras" y "Partidas" ya no
+ * son pestañas propias (viven como enlaces dentro de `/admin` y `/operador`
+ * respectivamente), así que sin `end` en el `NavLink` de abajo, "Administración"
+ * y "Operador" se quedan resaltados en toda su subruta (`/admin/figuras`,
+ * `/operador/partidas/3`) y no solo en su raíz.
+ */
 const RUTAS: Ruta[] = [
-  { to: '/admin', etiqueta: 'Administración', exacto: true },
-  { to: '/admin/figuras', etiqueta: 'Figuras' },
-  { to: '/operador', etiqueta: 'Operador', exacto: true },
-  { to: '/operador/partidas', etiqueta: 'Partidas' },
+  { to: '/admin', etiqueta: 'Administración' },
+  { to: '/operador', etiqueta: 'Operador' },
   { to: '/transmision', etiqueta: 'Transmisión' },
   { to: '/jugador', etiqueta: 'Jugador' },
   { to: '/vendedor', etiqueta: 'Vendedor', fase2: true },
@@ -52,7 +51,6 @@ export function Layout() {
               <NavLink
                 key={ruta.to}
                 to={ruta.to}
-                end={ruta.exacto}
                 className={({ isActive }) =>
                   cn(
                     'shrink-0 rounded-md px-3 py-1.5 text-sm font-medium transition-colors',
