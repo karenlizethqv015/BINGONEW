@@ -171,22 +171,31 @@ export function Operador() {
           </p>
         </div>
 
-        {partidas.length > 1 && (
-          <label className="flex items-center gap-2 text-sm">
-            <span className="text-muted-foreground">Partida</span>
-            <select
-              value={partidaId ?? ''}
-              onChange={(e) => setPartidaId(Number(e.target.value))}
-              className="rounded-md border border-input bg-surface px-2.5 py-1.5 text-sm"
-            >
-              {partidas.map((p) => (
-                <option key={p.id} value={p.id}>
-                  Juego {p.numero_consecutivo} · {ETIQUETA_ESTADO[p.estado]}
-                </option>
-              ))}
-            </select>
-          </label>
-        )}
+        <div className="flex flex-wrap items-center gap-3">
+          {partidas.length > 1 && (
+            <label className="flex items-center gap-2 text-sm">
+              <span className="text-muted-foreground">Partida</span>
+              <select
+                value={partidaId ?? ''}
+                onChange={(e) => setPartidaId(Number(e.target.value))}
+                className="rounded-md border border-input bg-surface px-2.5 py-1.5 text-sm"
+              >
+                {partidas.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    Juego {p.numero_consecutivo} · {ETIQUETA_ESTADO[p.estado]}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+
+          {/* Siempre visible, no solo cuando no hay ninguna partida: es el
+              punto de entrada a crear, ver o borrar partidas, y quedaba
+              enterrado como un enlace de texto suelto al fondo del panel. */}
+          <Button asChild size="sm" variant="outline">
+            <Link to="/operador/partidas">Gestionar partidas</Link>
+          </Button>
+        </div>
       </header>
 
       {error && (
@@ -371,12 +380,6 @@ export function Operador() {
                     className="text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
                   >
                     Catálogo
-                  </Link>
-                  <Link
-                    to="/operador/partidas"
-                    className="text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
-                  >
-                    Todas las partidas
                   </Link>
                 </div>
               </CardContent>
