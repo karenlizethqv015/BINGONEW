@@ -46,6 +46,14 @@ export interface CartonCerca {
   numeros: number[]
 }
 
+/** Cuántos cartones están a una y a dos balotas, para UNA forma en concreto. */
+export interface ResumenPorForma {
+  partida_figura_id: number
+  figura: string
+  a_una: number
+  a_dos: number
+}
+
 export interface CuadroGanadores {
   tipo: 'ganadores'
   partida_id: number
@@ -60,6 +68,11 @@ export interface CuadroGanadores {
   a_una: number
   a_dos: number
   cerca: CartonCerca[]
+  /**
+   * Los mismos totales reales, desglosados por forma vigente (sin las ya
+   * ganadas). Es lo que usa el resumen condensado de la balotera.
+   */
+  por_forma: ResumenPorForma[]
 }
 
 export const CUADRO_VACIO: CuadroGanadores = {
@@ -71,6 +84,7 @@ export const CUADRO_VACIO: CuadroGanadores = {
   a_una: 0,
   a_dos: 0,
   cerca: [],
+  por_forma: [],
 }
 
 export function obtenerGanadores(partidaId: number): Promise<CuadroGanadores> {

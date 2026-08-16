@@ -178,6 +178,15 @@ async def test_el_cuadro_avisa_de_quien_esta_a_una_y_a_dos(
     assert {c["codigo"] for c in a_una} == {"A-1", "A-2"}
     assert all(c["numeros"] == [5] for c in a_una)
 
+    # El desglose por forma: A-1 y A-2 están a una de «Línea», y solo A-1 a
+    # dos de «Segunda» (A-2 necesita la segunda fila con números que no se han
+    # cantado, así que no cuenta ahí).
+    por_forma = {f["figura"]: f for f in cuadro["por_forma"]}
+    assert por_forma["Línea"]["a_una"] == 2
+    assert por_forma["Línea"]["a_dos"] == 0
+    assert por_forma["Segunda"]["a_una"] == 0
+    assert por_forma["Segunda"]["a_dos"] == 1
+
 
 async def test_consultar_el_cuadro_no_registra_ganadores(
     cliente: AsyncClient, sesion_factory: async_sessionmaker
@@ -332,6 +341,20 @@ async def test_un_bingo_detiene_el_sorteo(
 
     # Y no se puede seguir cantando sin reanudar a mano.
     assert (await cliente.post(f"/api/partidas/{partida}/balotas")).status_code == 409
+
+
+async def test_una_forma_ganada_no_aparece_en_por_forma(
+    cliente: AsyncClient, sesion_factory: async_sessionmaker
+) -> None:
+    """No tiene sentido avisar de «a una» para un premio que ya se entregó."""
+    partida = await _preparar(
+        cliente, sesion_factory, {"Línea": PRIMERA_FILA, "Segunda": SEGUNDA_FILA}
+    )
+    await cliente.post(f"/api/partidas/{partida}/iniciar")
+    cuadro = await _provocar_un_bingo(cliente, sesion_factory, partida)
+
+    nombres = {f["figura"] for f in cuadro["por_forma"]}
+    assert nombres == {"Segunda"}, "«Línea» ya se ganó; solo debe quedar «Segunda»"
 
 
 async def test_tras_reanudar_el_mismo_bingo_no_vuelve_a_pausar(

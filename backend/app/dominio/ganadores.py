@@ -124,6 +124,23 @@ def mascaras_de(
     }
 
 
+@dataclass(frozen=True)
+class ResumenPorForma:
+    """Cuántos cartones están a una y a dos balotas, para UNA forma en concreto.
+
+    A diferencia de `cerca` (recortada a `MAXIMO_CERCA` entradas totales, de
+    todas las formas juntas), estos conteos son siempre los reales: existen
+    justamente para que la balotera pueda mostrar «cartones a una balota de
+    ganar: N» por forma, sin depender de que la lista detallada alcance a
+    traerlos a todos.
+    """
+
+    partida_figura_id: int
+    figura: str
+    a_una: int
+    a_dos: int
+
+
 @dataclass
 class CuadroDeGanadores:
     """Foto completa del estado de ganadores de una partida."""
@@ -132,6 +149,10 @@ class CuadroDeGanadores:
     cerca: list[CartonCerca]
     a_una: int
     a_dos: int
+    #: Una entrada por cada forma todavía vigente (ni ganada ni recién
+    #: cerrada en esta misma balota). Las formas ya cerradas no aparecen: no
+    #: tiene sentido avisar de «a una» para un premio que ya se entregó.
+    por_forma: list[ResumenPorForma] = field(default_factory=list)
 
     @property
     def total_cartones_ganadores(self) -> int:
@@ -272,9 +293,32 @@ def evaluar(
     # que la lista no baile de posición entre balota y balota.
     cerca.sort(key=lambda c: (c.faltan, c.carton_id, c.figura))
 
+    # El desglose por forma sale de `cerca` ya completa (antes del recorte a
+    # MAXIMO_CERCA): cada entrada trae su `partida_figura_id`, así que basta
+    # con contar, sin otra pasada por los cartones. Las formas cerradas —ya
+    # ganadas, incluida la que se acaba de ganar en esta misma balota— quedan
+    # fuera a propósito.
+    cerradas = {ganada.forma.partida_figura_id for ganada in ganadas}
+    conteos: dict[int, list[int]] = {}
+    for item in cerca:
+        contador = conteos.setdefault(item.partida_figura_id, [0, 0])
+        contador[0 if item.faltan == 1 else 1] += 1
+
+    por_forma = [
+        ResumenPorForma(
+            partida_figura_id=forma.partida_figura_id,
+            figura=forma.nombre,
+            a_una=conteos.get(forma.partida_figura_id, [0, 0])[0],
+            a_dos=conteos.get(forma.partida_figura_id, [0, 0])[1],
+        )
+        for forma in sorted(formas, key=lambda f: f.orden)
+        if forma.partida_figura_id not in cerradas
+    ]
+
     return CuadroDeGanadores(
         ganadas=ganadas,
         cerca=cerca[:MAXIMO_CERCA],
         a_una=a_una,
         a_dos=a_dos,
+        por_forma=por_forma,
     )

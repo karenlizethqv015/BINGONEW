@@ -5,41 +5,22 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
-import type { CartonCerca } from '@/lib/ganadores'
-import { cn } from '@/lib/utils'
+import type { ResumenPorForma } from '@/lib/ganadores'
 
 interface Props {
-  cerca: CartonCerca[]
-  /** Totales reales: la lista viene recortada, estos conteos no. */
-  aUna: number
-  aDos: number
+  porForma: ResumenPorForma[]
 }
 
 /**
- * Los cartones a una y a dos balotas de ganar.
+ * Cuántos cartones están a una balota de ganar, una línea por forma vigente.
  *
  * Es información **solo del administrador**: al jugador le quitaría la emoción
- * y al tablero de la sala lo convertiría en un delator. Sirve para saber que la
- * partida está a punto de resolverse y prepararse para verificar el cartón.
+ * y al tablero de la sala lo convertiría en un delator. Antes mostraba una
+ * lista detallada por cartón (código, figura, números que faltan); el cliente
+ * pidió condensarla a un conteo por forma para que quepa en la pantalla sin
+ * desplazarse — "cartones a una balota de ganar: N", una forma por línea.
  */
-export function CercaDeGanar({ cerca, aUna, aDos }: Props) {
-  const grupos = [
-    {
-      faltan: 1,
-      titulo: 'A una balota',
-      total: aUna,
-      items: cerca.filter((c) => c.faltan === 1),
-      destacado: true,
-    },
-    {
-      faltan: 2,
-      titulo: 'A dos balotas',
-      total: aDos,
-      items: cerca.filter((c) => c.faltan === 2),
-      destacado: false,
-    },
-  ]
-
+export function CercaDeGanar({ porForma }: Props) {
   return (
     <Card>
       <CardHeader>
@@ -49,73 +30,35 @@ export function CercaDeGanar({ cerca, aUna, aDos }: Props) {
         </CardDescription>
       </CardHeader>
 
-      <CardContent className="space-y-5">
-        {aUna === 0 && aDos === 0 && (
+      <CardContent>
+        {porForma.length === 0 ? (
           <p className="text-sm text-muted-foreground">
-            Ningún cartón está todavía a dos balotas de completar una forma.
+            Ninguna forma sigue en juego todavía.
           </p>
-        )}
-
-        {grupos.map((grupo) =>
-          grupo.total === 0 ? null : (
-            <div key={grupo.faltan} className="space-y-2">
-              <div className="flex items-baseline gap-2">
-                <span
-                  className={cn(
-                    'grid size-7 shrink-0 place-items-center rounded-full text-sm font-bold tabular',
-                    grupo.destacado
-                      ? 'bg-primary text-primary-foreground'
-                      : 'bg-surface-2 text-muted-foreground',
-                  )}
-                >
-                  {grupo.total}
+        ) : (
+          <ul className="divide-y divide-border">
+            {porForma.map((forma) => (
+              <li
+                key={forma.partida_figura_id}
+                className="flex items-center justify-between gap-3 py-2 text-sm"
+              >
+                <span className="min-w-0 truncate text-muted-foreground">
+                  {forma.figura}
                 </span>
-                <h3
-                  className={cn(
-                    'font-semibold',
-                    grupo.destacado ? 'text-primary' : 'text-muted-foreground',
-                  )}
-                >
-                  {grupo.titulo}
-                </h3>
-              </div>
-
-              <ul className="space-y-1">
-                {grupo.items.map((item) => (
-                  <li
-                    key={`${item.carton_id}-${item.partida_figura_id}`}
-                    className={cn(
-                      'flex flex-wrap items-center justify-between gap-x-3 gap-y-1 rounded-md px-2.5 py-1.5 text-sm',
-                      grupo.destacado
-                        ? 'bg-primary/10 ring-1 ring-primary/30'
-                        : 'bg-surface-2',
-                    )}
-                  >
-                    <span className="font-bold tabular">{item.codigo}</span>
-                    <span className="min-w-0 flex-1 truncate text-muted-foreground">
-                      {item.figura}
+                <span className="flex shrink-0 items-baseline gap-3">
+                  <span>
+                    Cartones a una balota de ganar:{' '}
+                    <span className="font-bold tabular text-primary">
+                      {forma.a_una}
                     </span>
-                    <span className="flex gap-1">
-                      {item.numeros.map((numero) => (
-                        <span
-                          key={numero}
-                          className="rounded bg-surface px-1.5 py-0.5 font-bold tabular text-foreground"
-                        >
-                          {numero}
-                        </span>
-                      ))}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-
-              {grupo.items.length < grupo.total && (
-                <p className="text-xs text-muted-foreground">
-                  y {grupo.total - grupo.items.length} más
-                </p>
-              )}
-            </div>
-          ),
+                  </span>
+                  <span className="text-xs text-muted-foreground">
+                    a dos: <span className="font-semibold tabular">{forma.a_dos}</span>
+                  </span>
+                </span>
+              </li>
+            ))}
+          </ul>
         )}
       </CardContent>
     </Card>
