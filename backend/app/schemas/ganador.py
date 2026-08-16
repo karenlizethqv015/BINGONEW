@@ -41,6 +41,15 @@ class CercaLeer(BaseModel):
     numeros: list[int]
 
 
+class ResumenPorFormaLeer(BaseModel):
+    """Cuántos cartones están a una y a dos balotas, para una forma en concreto."""
+
+    partida_figura_id: int
+    figura: str
+    a_una: int
+    a_dos: int
+
+
 class CuadroGanadoresLeer(BaseModel):
     """Foto completa: quién ganó y quién está a punto."""
 
@@ -54,3 +63,7 @@ class CuadroGanadoresLeer(BaseModel):
     a_una: int
     a_dos: int
     cerca: list[CercaLeer]
+    #: Los mismos totales reales, desglosados por forma vigente. Es lo que usa
+    #: la balotera para el resumen condensado («cartones a una balota de
+    #: ganar: N»), sin tener que derivarlo de `cerca` en el cliente.
+    por_forma: list[ResumenPorFormaLeer]

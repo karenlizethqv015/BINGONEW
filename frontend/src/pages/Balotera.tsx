@@ -387,11 +387,7 @@ export function Balotera() {
             </CardContent>
           </Card>
 
-          <CercaDeGanar
-            cerca={ganadores.cerca}
-            aUna={ganadores.a_una}
-            aDos={ganadores.a_dos}
-          />
+          <CercaDeGanar porForma={ganadores.por_forma} />
         </div>
 
         {/* Tablero de los 75 números */}

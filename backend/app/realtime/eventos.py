@@ -140,4 +140,13 @@ def evento_ganadores(
             }
             for item in cuadro.cerca
         ],
+        "por_forma": [
+            {
+                "partida_figura_id": item.partida_figura_id,
+                "figura": item.figura,
+                "a_una": item.a_una,
+                "a_dos": item.a_dos,
+            }
+            for item in cuadro.por_forma
+        ],
     }
