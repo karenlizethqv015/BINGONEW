@@ -2,13 +2,15 @@ import { useEffect, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 
 import { Bola } from '@/components/balotera/Bola'
-import { CuadriculaFigura } from '@/components/figuras/CuadriculaFigura'
+import { BotonPantallaCompleta } from '@/components/transmision/BotonPantallaCompleta'
+import { CarruselFormas } from '@/components/transmision/CarruselFormas'
+import { EstadoVenta } from '@/components/transmision/EstadoVenta'
+import { VideoCamara } from '@/components/transmision/VideoCamara'
 import { usePartidaEnVivo } from '@/hooks/usePartidaEnVivo'
 import { LETRAS, RANGOS_POR_COLUMNA, TOTAL_BALOTAS } from '@/lib/bingo'
 import { textoCartones } from '@/lib/ganadores'
 import {
   ETIQUETA_ESTADO,
-  formatearPesos,
   listarPartidas,
   obtenerPartida,
   type Partida,
@@ -19,21 +21,25 @@ import { cn } from '@/lib/utils'
 const RECIENTES = 5
 
 /**
- * Tablero de transmisión — tarea #6 de la Fase 1.
+ * Tablero de transmisión — tarea #6 de la Fase 1, rediseñado a petición del
+ * cliente tras ver la demo (ver `PROGRESS.md`, Fase 1.6, tarea #3).
  *
  * Pantalla pública para **proyectar en el televisor de la sala**. Sin login y
  * de solo lectura: se alimenta del mismo WebSocket de la partida que la
  * balotera, así que no hay forma de que muestre algo distinto de lo que ve el
- * administrador.
+ * operador. Por eso tampoco lleva la barra de navegación de la aplicación (va
+ * fuera del `Layout`): en la sala ocupa la pantalla entera, y además se puede
+ * poner en pantalla completa de verdad con `BotonPantallaCompleta`.
  *
- * Todo está dimensionado para leerse a varios metros: números grandes, mucho
- * contraste y nada de texto pequeño. Por eso tampoco lleva la barra de
- * navegación de la aplicación (va fuera del `Layout`): en la sala ocupa la
- * pantalla entera.
+ * Orden de bloques pedido por el cliente, de arriba hacia abajo: el tablero
+ * de números, las formas de ganar (una a la vez, en bucle), el video de la
+ * cámara de la sala, las últimas 5 balotas, y un contador de cuántas de las
+ * 75 van cantadas. Todo pensado para caber en la pantalla **sin scroll**.
  *
  * **Lo que aquí NO se muestra:** los avisos de «a una / a dos balotas». Son
- * información de control del administrador; proyectados serían un delator que
- * le quita la gracia al juego. El bingo sí se anuncia, que es la fiesta.
+ * información de control del operador; proyectados serían un delator que le
+ * quita la gracia al juego. El bingo sí se anuncia (de forma anónima: solo el
+ * código del cartón, nunca la identidad de quien juega), que es la fiesta.
  */
 export function Transmision() {
   const [parametros] = useSearchParams()
@@ -144,37 +150,22 @@ export function Transmision() {
   const formas = partida?.figuras ?? []
 
   return (
-    <div className="flex min-h-screen flex-col gap-4 p-4 sm:gap-5 sm:p-6 xl:p-8">
-      {/* Encabezado: de qué juego se trata y si el canal está vivo */}
-      <header className="flex flex-wrap items-baseline justify-between gap-x-8 gap-y-2">
-        <h1 className="text-2xl font-black tracking-tight sm:text-4xl xl:text-5xl">
-          Juego{' '}
-          <span className="tabular text-primary">
-            {vivo.numeroConsecutivo ?? partida?.numero_consecutivo ?? '—'}
-          </span>
-        </h1>
-
-        <div className="flex items-center gap-3 text-base sm:gap-6 sm:text-xl xl:text-2xl">
-          {/* Salida discreta: en la sala nadie pasa el ratón por encima, así
-              que queda invisible proyectado, pero permite volver al configurar. */}
-          <Link
-            to="/operador/partidas"
-            className="text-base text-muted-foreground/25 transition-opacity hover:text-muted-foreground"
-          >
-            ← salir
-          </Link>
-
-          <span className="text-muted-foreground">
-            Balotas{' '}
-            <span className="font-bold tabular text-foreground">
-              {vivo.totalCantadas}
+    <div className="flex h-screen flex-col gap-3 overflow-hidden p-3 sm:gap-4 sm:p-4 xl:gap-5 xl:p-6">
+      {/* Encabezado: de qué juego se trata, el bombillo de venta, pantalla
+          completa y si el canal está vivo. */}
+      <header className="flex shrink-0 flex-wrap items-baseline justify-between gap-x-6 gap-y-1">
+        <div className="flex items-baseline gap-4">
+          <h1 className="text-2xl font-black tracking-tight sm:text-4xl xl:text-5xl">
+            Juego{' '}
+            <span className="tabular text-primary">
+              {vivo.numeroConsecutivo ?? partida?.numero_consecutivo ?? '—'}
             </span>
-            <span className="tabular text-muted-foreground">
-              /{TOTAL_BALOTAS}
-            </span>
-          </span>
+          </h1>
+          <EstadoVenta ventaAbierta={vivo.ventaAbierta} />
+        </div>
 
-          <span className="flex items-center gap-2.5">
+        <div className="flex items-center gap-3 text-sm sm:gap-4 sm:text-lg xl:gap-5 xl:text-xl">
+          <span className="flex items-center gap-2">
             <span
               className={cn(
                 'size-3 rounded-full',
@@ -201,19 +192,31 @@ export function Transmision() {
                 : 'Sin conexión'}
             </span>
           </span>
+
+          <BotonPantallaCompleta />
+
+          {/* Salida discreta: en la sala nadie pasa el ratón por encima, así
+              que queda invisible proyectado, pero permite volver al configurar. */}
+          <Link
+            to="/operador/partidas"
+            className="text-base text-muted-foreground/25 transition-opacity hover:text-muted-foreground"
+          >
+            ← salir
+          </Link>
         </div>
       </header>
 
-      {/* El bingo se anuncia a toda la sala. */}
+      {/* El bingo se anuncia a toda la sala, siempre de forma anónima: solo
+          el código del cartón, nunca quién juega. */}
       {vivo.ganadores.bingos.length > 0 && (
         <section
           role="alert"
-          className="animate-bingo flex flex-wrap items-center justify-center gap-x-10 gap-y-3 rounded-xl bg-success px-8 py-4 text-success-foreground"
+          className="animate-bingo flex shrink-0 flex-wrap items-center justify-center gap-x-10 gap-y-2 rounded-xl bg-success px-6 py-3 text-success-foreground"
         >
-          <span className="text-4xl font-black tracking-wide xl:text-5xl">
+          <span className="text-3xl font-black tracking-wide xl:text-4xl">
             ¡BINGO!
           </span>
-          <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-xl xl:text-2xl">
+          <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-1 text-lg xl:text-xl">
             {vivo.ganadores.bingos.map((bingo) => (
               <span key={bingo.partida_figura_id} className="font-semibold">
                 {bingo.figura}
@@ -224,19 +227,21 @@ export function Transmision() {
               </span>
             ))}
           </div>
-          <span className="text-xl font-semibold xl:text-2xl">
+          <span className="text-lg font-semibold xl:text-xl">
             {textoCartones(vivo.ganadores.total_cartones_ganadores)}
           </span>
         </section>
       )}
 
-      <div className="grid flex-1 gap-5 xl:grid-cols-[minmax(0,1fr)_22rem] xl:items-start">
-        {/* Tablero de los 75 números: lo que la sala mira todo el rato */}
-        <section className="rounded-xl border border-border bg-surface p-3 sm:p-5 xl:p-6">
-          <div className="space-y-1.5 sm:space-y-2 xl:space-y-3">
+      {/* Cuerpo: el tablero arriba, dominando la pantalla, y la franja de
+          abajo con las cuatro cosas que pidió el cliente en su orden:
+          formas de ganar, cámara, últimas balotas y el contador. */}
+      <div className="grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)_minmax(0,auto)] gap-3 sm:gap-4 xl:gap-5">
+        <section className="min-h-0 overflow-hidden rounded-xl border border-border bg-surface p-2 sm:p-4 xl:p-6">
+          <div className="flex h-full flex-col justify-center gap-1 sm:gap-1.5 xl:gap-2.5">
             {RANGOS_POR_COLUMNA.map(([desde, hasta], indice) => (
               <div key={LETRAS[indice]} className="flex items-center gap-2 sm:gap-3">
-                <span className="w-6 text-center text-xl font-black text-primary sm:w-9 sm:text-3xl xl:text-4xl">
+                <span className="w-6 text-center text-lg font-black text-primary sm:w-9 sm:text-2xl xl:text-4xl">
                   {LETRAS[indice]}
                 </span>
                 <div className="grid flex-1 grid-cols-15 gap-1 sm:gap-1.5">
@@ -254,7 +259,7 @@ export function Transmision() {
                           // Se encoge en pantallas pequeñas: son 15 columnas, y
                           // un tamaño pensado para el televisor desbordaría un
                           // portátil. En la sala manda el `xl`.
-                          'grid aspect-square place-items-center rounded sm:rounded-lg text-[10px] font-bold tabular transition-colors duration-300 sm:text-base lg:text-xl xl:text-2xl',
+                          'grid aspect-square place-items-center rounded sm:rounded-lg text-[9px] font-bold tabular transition-colors duration-300 sm:text-sm lg:text-lg xl:text-2xl',
                           // El último cantado va en VERDE, como pide el
                           // documento de alcance: es lo que la sala busca con
                           // la vista al oír el número.
@@ -275,113 +280,48 @@ export function Transmision() {
           </div>
         </section>
 
-        <div className="space-y-5">
-          {/* Última balota y las anteriores */}
-          <section className="rounded-xl border border-border bg-surface p-5 text-center">
-            {vivo.ultima ? (
-              <Bola
-                key={vivo.ultima.numero}
-                balota={vivo.ultima}
-                tamano="grande"
-                destacada
-                className="animate-balota mx-auto"
-              />
-            ) : (
-              <div className="mx-auto grid size-32 place-items-center rounded-full border-2 border-dashed border-border text-lg text-muted-foreground">
-                Sin balotas
-              </div>
-            )}
+        <div className="grid h-[30vh] min-h-[9rem] grid-cols-4 gap-3 sm:gap-4 xl:h-[32vh] xl:gap-5">
+          {/* 1. Formas de ganar, alternando. */}
+          <CarruselFormas formas={formas} ganadas={ganadas} />
 
-            {recientes.length > 1 && (
-              <div className="mt-5 border-t border-border pt-4">
-                <p className="mb-2.5 text-sm uppercase tracking-wider text-muted-foreground">
-                  Anteriores
-                </p>
-                <div className="flex flex-wrap justify-center gap-2">
-                  {recientes.slice(1).map((balota) => (
-                    <Bola key={balota.numero} balota={balota} tamano="mini" />
-                  ))}
-                </div>
-              </div>
-            )}
-          </section>
+          {/* 2. Cámara de la sala. */}
+          <VideoCamara />
 
-          {/* Formas de ganar en juego, con su premio */}
-          <section className="rounded-xl border border-border bg-surface p-5">
-            <h2 className="mb-3 text-sm uppercase tracking-wider text-muted-foreground">
-              Formas de ganar
+          {/* 3. Últimas balotas. */}
+          <section className="flex min-h-0 flex-col items-center justify-center gap-2 overflow-hidden rounded-xl border border-border bg-surface p-2 xl:gap-3 xl:p-3">
+            <h2 className="shrink-0 text-[10px] uppercase tracking-wider text-muted-foreground xl:text-xs">
+              Últimas balotas
             </h2>
-
-            {formas.length === 0 ? (
-              <p className="text-muted-foreground">
-                Esta partida todavía no tiene formas configuradas.
-              </p>
+            {recientes.length === 0 ? (
+              <p className="text-xs text-muted-foreground">Sin balotas todavía.</p>
             ) : (
-              <ul className="space-y-2.5">
-                {formas.map((forma) => {
-                  const ganada = ganadas.has(forma.id)
-
-                  return (
-                    <li
-                      key={forma.id}
-                      className={cn(
-                        'flex items-center gap-3 rounded-lg px-3 py-2 transition-colors',
-                        ganada ? 'bg-success/15' : 'bg-surface-2',
-                      )}
-                    >
-                      <div className={cn(ganada && 'opacity-50')}>
-                        <CuadriculaFigura
-                          patron={forma.figura.patron}
-                          tamano="mini"
-                          etiqueta={forma.figura.nombre}
-                        />
-                      </div>
-
-                      <div className="min-w-0 flex-1">
-                        <p
-                          className={cn(
-                            'truncate font-semibold',
-                            ganada && 'text-muted-foreground line-through',
-                          )}
-                        >
-                          {forma.figura.nombre}
-                        </p>
-                        <p
-                          className={cn(
-                            'text-lg font-bold tabular',
-                            ganada ? 'text-success' : 'text-primary',
-                          )}
-                        >
-                          {formatearPesos(forma.valor_premio)}
-                        </p>
-                      </div>
-
-                      <span
-                        className={cn(
-                          'shrink-0 rounded-full px-2.5 py-1 text-xs font-bold uppercase tracking-wide',
-                          ganada
-                            ? 'bg-success text-success-foreground'
-                            : 'bg-primary/20 text-primary',
-                        )}
-                      >
-                        {ganada ? 'Ganada' : 'Jugando'}
-                      </span>
-                    </li>
-                  )
-                })}
-              </ul>
+              <div className="flex flex-wrap items-center justify-center gap-1.5 xl:gap-2">
+                {recientes.map((balota, i) => (
+                  <Bola
+                    key={balota.numero}
+                    balota={balota}
+                    tamano={i === 0 ? 'normal' : 'mini'}
+                    destacada={i === 0}
+                    className={i === 0 ? 'animate-balota' : undefined}
+                  />
+                ))}
+              </div>
             )}
           </section>
 
-          {/* Sitio reservado para la cámara de la sala. Es de la Fase 3
-              (docs/09 #10 lo pide como marcador de posición): se deja indicado
-              para que se vea dónde encaja, sin ocupar espacio útil. */}
-          <section className="hidden rounded-xl border border-dashed border-border p-5 text-center xl:block">
-            <p className="text-sm uppercase tracking-wider text-muted-foreground">
-              Video en vivo
+          {/* 4. Contador de balotas jugadas. */}
+          <section className="flex min-h-0 flex-col items-center justify-center gap-1 overflow-hidden rounded-xl border border-border bg-surface p-2 text-center xl:p-3">
+            <h2 className="text-[10px] uppercase tracking-wider text-muted-foreground xl:text-xs">
+              Balotas jugadas
+            </h2>
+            <p className="text-3xl font-black tabular leading-none sm:text-4xl xl:text-6xl">
+              {vivo.totalCantadas}
+              <span className="text-base font-semibold text-muted-foreground sm:text-lg xl:text-2xl">
+                /{TOTAL_BALOTAS}
+              </span>
             </p>
-            <p className="mt-1 text-xs text-muted-foreground/70">
-              La cámara de la sala se integra en la Fase 3.
+            <p className="text-[10px] text-muted-foreground xl:text-xs">
+              quedan {vivo.restantes}
             </p>
           </section>
         </div>
