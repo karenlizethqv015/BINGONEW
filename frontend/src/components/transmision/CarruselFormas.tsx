@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react'
 
 import { CuadriculaFigura } from '@/components/figuras/CuadriculaFigura'
 import { formatearPesos, type FormaSeleccionada } from '@/lib/partidas'
-import { cn } from '@/lib/utils'
 
 /** Cada cuántos milisegundos cambia la forma que se muestra. */
 const INTERVALO_MS = 5000
@@ -23,90 +22,61 @@ interface Props {
 export function CarruselFormas({ formas, ganadas }: Props) {
   const [indice, setIndice] = useState(0)
 
-  // Si cambió la lista (se agregó o quitó una forma), no seguir apuntando a
-  // una posición que ya no existe.
+  // Formas ya ganadas: no se muestran en el carrusel para no confundir al
+  // jugador con un premio que ya se repartió.
+  const enJuego = formas.filter((f) => !ganadas.has(f.id))
+
+  // Si cambió la lista en juego (se agregó, quitó, o se acaba de ganar una),
+  // no seguir apuntando a una posición que ya no existe.
   useEffect(() => {
     setIndice(0)
-  }, [formas.length])
+  }, [enJuego.length])
 
   useEffect(() => {
-    if (formas.length <= 1) return
+    if (enJuego.length <= 1) return
     const id = window.setInterval(
-      () => setIndice((i) => (i + 1) % formas.length),
+      () => setIndice((i) => (i + 1) % enJuego.length),
       INTERVALO_MS,
     )
     return () => window.clearInterval(id)
-  }, [formas.length])
+  }, [enJuego.length])
 
-  const forma = formas[indice] as FormaSeleccionada | undefined
-  const ganada = forma !== undefined && ganadas.has(forma.id)
+  const forma = enJuego[indice] as FormaSeleccionada | undefined
 
   return (
     <section className="flex min-h-0 flex-col items-center justify-center gap-1 overflow-hidden rounded-xl border border-border bg-surface p-2 text-center xl:gap-2 xl:p-3">
-      <h2 className="shrink-0 text-[10px] uppercase tracking-wider text-muted-foreground xl:text-xs">
-        Formas de ganar
-      </h2>
-
       {forma === undefined ? (
-        <p className="text-xs text-muted-foreground">Sin formas configuradas.</p>
+        <p className="text-xs text-muted-foreground">
+          {formas.length === 0
+            ? 'Sin formas configuradas.'
+            : 'Todas las formas ya se ganaron.'}
+        </p>
       ) : (
         <>
-          <div
-            className={cn(
-              'w-full max-w-[5.5rem] shrink sm:max-w-[7rem] xl:max-w-[8rem]',
-              ganada && 'opacity-50',
-            )}
-          >
-            <CuadriculaFigura
-              patron={forma.figura.patron}
-              tamano="grande"
-              etiqueta={forma.figura.nombre}
-            />
+          {/* Este envoltorio SÍ lleva `min-h-0` y `flex-1`: a diferencia de
+              un tope de ancho fijo (que dejaba que la figura pidiera más
+              alto del que había y se recortara o, peor, se saliera de su
+              caja y quedara flotando encima del nombre y el premio), aquí
+              es el propio `flex-1` el que le da a este recuadro el alto
+              exacto que sobra en la tarjeta — ni un pixel más. El
+              `overflow-hidden` es solo una red de seguridad local: como
+              `CuadriculaFigura` mide su alto a partir del ancho (letras +
+              cuadrícula cuadrada), el ajuste no es matemáticamente exacto,
+              pero cualquier desajuste queda contenido aquí adentro y nunca
+              se derrama sobre el nombre o el premio de abajo. */}
+          <div className="flex min-h-0 w-full flex-1 items-center justify-center overflow-hidden">
+            <div className="aspect-[5/6] h-full max-w-full">
+              <CuadriculaFigura
+                patron={forma.figura.patron}
+                tamano="grande"
+                etiqueta={forma.figura.nombre}
+              />
+            </div>
           </div>
 
-          <p
-            className={cn(
-              'w-full truncate text-xs font-semibold xl:text-sm',
-              ganada && 'text-muted-foreground line-through',
-            )}
-          >
-            {forma.figura.nombre}
-          </p>
-
-          <p
-            className={cn(
-              'text-sm font-bold tabular xl:text-lg',
-              ganada ? 'text-success' : 'text-primary',
-            )}
-          >
+          <p className="shrink-0 text-sm font-bold tabular text-primary xl:text-lg">
             {formatearPesos(forma.valor_premio)}
           </p>
-
-          <span
-            className={cn(
-              'shrink-0 rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide xl:text-[10px]',
-              ganada
-                ? 'bg-success text-success-foreground'
-                : 'bg-primary/20 text-primary',
-            )}
-          >
-            {ganada ? 'Ganada' : 'Jugando'}
-          </span>
-
-          {formas.length > 1 && (
-            <div className="flex shrink-0 gap-1 pt-0.5">
-              {formas.map((f, i) => (
-                <span
-                  key={f.id}
-                  className={cn(
-                    'size-1.5 rounded-full transition-colors',
-                    i === indice ? 'bg-primary' : 'bg-surface-2',
-                  )}
-                  aria-hidden
-                />
-              ))}
-            </div>
-          )}
         </>
       )}
     </section>

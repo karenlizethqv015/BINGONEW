@@ -238,43 +238,49 @@ export function Transmision() {
           formas de ganar, cámara, últimas balotas y el contador. */}
       <div className="grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)_minmax(0,auto)] gap-3 sm:gap-4 xl:gap-5">
         <section className="min-h-0 overflow-hidden rounded-xl border border-border bg-surface p-2 sm:p-4 xl:p-6">
-          <div className="flex h-full flex-col justify-center gap-1 sm:gap-1.5 xl:gap-2.5">
+          <div className="grid h-full grid-rows-5 gap-1 sm:gap-1.5 xl:gap-2.5">
             {RANGOS_POR_COLUMNA.map(([desde, hasta], indice) => (
-              <div key={LETRAS[indice]} className="flex items-center gap-2 sm:gap-3">
-                <span className="w-6 text-center text-lg font-black text-primary sm:w-9 sm:text-2xl xl:text-4xl">
+              <div
+                key={LETRAS[indice]}
+                className="grid min-h-0 grid-cols-[auto_repeat(15,minmax(0,1fr))] items-stretch gap-2 sm:gap-3"
+              >
+                <span className="flex items-center justify-center text-lg font-black text-primary sm:text-2xl xl:text-4xl">
                   {LETRAS[indice]}
                 </span>
-                <div className="grid flex-1 grid-cols-15 gap-1 sm:gap-1.5">
-                  {Array.from(
-                    { length: hasta - desde + 1 },
-                    (_, i) => desde + i,
-                  ).map((numero) => {
-                    const salio = vivo.cantadas.has(numero)
-                    const esUltima = vivo.ultima?.numero === numero
+                {Array.from(
+                  { length: hasta - desde + 1 },
+                  (_, i) => desde + i,
+                ).map((numero) => {
+                  const salio = vivo.cantadas.has(numero)
+                  const esUltima = vivo.ultima?.numero === numero
 
-                    return (
-                      <span
-                        key={numero}
-                        className={cn(
-                          // Se encoge en pantallas pequeñas: son 15 columnas, y
-                          // un tamaño pensado para el televisor desbordaría un
-                          // portátil. En la sala manda el `xl`.
-                          'grid aspect-square place-items-center rounded sm:rounded-lg text-[9px] font-bold tabular transition-colors duration-300 sm:text-sm lg:text-lg xl:text-2xl',
-                          // El último cantado va en VERDE, como pide el
-                          // documento de alcance: es lo que la sala busca con
-                          // la vista al oír el número.
-                          esUltima
-                            ? 'animate-balota bg-success text-success-foreground shadow-lg shadow-success/40'
-                            : salio
-                              ? 'bg-primary text-primary-foreground'
-                              : 'bg-surface-2 text-muted-foreground/50',
-                        )}
-                      >
-                        {numero}
-                      </span>
-                    )
-                  })}
-                </div>
+                  return (
+                    <span
+                      key={numero}
+                      className={cn(
+                        // Cada celda llena su casilla del grid, tanto de
+                        // ancho como de alto: si el tamaño se sacara del
+                        // ancho (como con `aspect-square`), 5 filas de
+                        // celdas «cuadradas» podían pedir más alto del que
+                        // tenía la sección, y el `overflow-hidden` de arriba
+                        // recortaba en silencio la fila de encima y la de
+                        // abajo. Al depender del propio renglón del grid, el
+                        // tablero siempre cabe entero.
+                        'grid min-h-0 place-items-center rounded sm:rounded-lg text-[9px] font-bold tabular transition-colors duration-300 sm:text-sm lg:text-lg xl:text-2xl',
+                        // El último cantado va en VERDE, como pide el
+                        // documento de alcance: es lo que la sala busca con
+                        // la vista al oír el número.
+                        esUltima
+                          ? 'animate-balota bg-success text-success-foreground shadow-lg shadow-success/40'
+                          : salio
+                            ? 'bg-primary text-primary-foreground'
+                            : 'bg-surface-2 text-muted-foreground/50',
+                      )}
+                    >
+                      {numero}
+                    </span>
+                  )
+                })}
               </div>
             ))}
           </div>

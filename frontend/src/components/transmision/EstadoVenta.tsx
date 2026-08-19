@@ -28,10 +28,10 @@ export function EstadoVenta({ ventaAbierta }: Props) {
       />
       <span className="text-xs text-muted-foreground xl:text-sm">
         {ventaAbierta === null
-          ? 'Venta —'
+          ? 'Venta de cartones —'
           : ventaAbierta
-            ? 'Venta abierta'
-            : 'Venta cerrada'}
+            ? 'Venta de cartones abierta'
+            : 'Venta de cartones cerrada'}
       </span>
     </span>
   )
