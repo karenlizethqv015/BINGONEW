@@ -386,64 +386,66 @@ export function Balotera() {
               )}
             </CardContent>
           </Card>
-
-          <CercaDeGanar porForma={ganadores.por_forma} />
         </div>
 
         {/* Tablero de los 75 números */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Tablero</CardTitle>
-            <CardDescription>
-              Para la sala, en grande y sin controles, usa el{' '}
-              <a
-                href={`/transmision?partida=${partidaId}`}
-                target="_blank"
-                rel="noreferrer"
-                className="text-primary underline-offset-4 hover:underline"
-              >
-                tablero de transmisión ↗
-              </a>
-              .
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-1.5">
-              {RANGOS_POR_COLUMNA.map(([desde, hasta], indice) => (
-                <div key={LETRAS[indice]} className="flex items-center gap-2">
-                  <span className="w-5 text-lg font-bold text-primary">
-                    {LETRAS[indice]}
-                  </span>
-                  <div className="flex flex-wrap gap-1">
-                    {Array.from(
-                      { length: hasta - desde + 1 },
-                      (_, i) => desde + i,
-                    ).map((numero) => {
-                      const salio = vivo.cantadas.has(numero)
-                      const esUltima = vivo.ultima?.numero === numero
+        <div className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Tablero</CardTitle>
+              <CardDescription>
+                Para la sala, en grande y sin controles, usa el{' '}
+                <a
+                  href={`/transmision?partida=${partidaId}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-primary underline-offset-4 hover:underline"
+                >
+                  tablero de transmisión ↗
+                </a>
+                .
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-1.5">
+                {RANGOS_POR_COLUMNA.map(([desde, hasta], indice) => (
+                  <div key={LETRAS[indice]} className="flex items-center gap-2">
+                    <span className="w-5 text-lg font-bold text-primary">
+                      {LETRAS[indice]}
+                    </span>
+                    <div className="flex flex-wrap gap-1">
+                      {Array.from(
+                        { length: hasta - desde + 1 },
+                        (_, i) => desde + i,
+                      ).map((numero) => {
+                        const salio = vivo.cantadas.has(numero)
+                        const esUltima = vivo.ultima?.numero === numero
 
-                      return (
-                        <span
-                          key={numero}
-                          className={cn(
-                            'grid size-8 place-items-center rounded text-sm font-semibold tabular transition-colors',
-                            esUltima
-                              ? 'bg-success text-success-foreground'
-                              : salio
-                                ? 'bg-primary text-primary-foreground'
-                                : 'bg-surface-2 text-muted-foreground',
-                          )}
-                        >
-                          {numero}
-                        </span>
-                      )
-                    })}
+                        return (
+                          <span
+                            key={numero}
+                            className={cn(
+                              'grid size-8 place-items-center rounded text-sm font-semibold tabular transition-colors',
+                              esUltima
+                                ? 'bg-success text-success-foreground'
+                                : salio
+                                  ? 'bg-primary text-primary-foreground'
+                                  : 'bg-surface-2 text-muted-foreground',
+                            )}
+                          >
+                            {numero}
+                          </span>
+                        )
+                      })}
+                    </div>
                   </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+
+          <CercaDeGanar aUna={ganadores.a_una} aDos={ganadores.a_dos} />
+        </div>
       </div>
     </div>
   )
